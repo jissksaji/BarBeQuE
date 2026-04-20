@@ -1,0 +1,75 @@
+# Nextflow work directory
+work/
+.nextflow/
+.nextflow.log*
+.nextflow.pid
+.nextflow.cache/
+
+# Pipeline outputs
+results/
+output/
+outdir/
+
+# Database files
+*.fasta
+*.fa
+*.txt.gz
+*.fasta.gz
+flowering_plants_crabs*.txt
+*_insilico.txt
+*_untrimmed.txt
+
+# Taxonomy dumps
+nodes.dmp
+names.dmp
+*.dmp
+nucl_gb.accession2taxid*
+*.accession2taxid*
+
+# BLAST databases
+*.nhr
+*.nin
+*.nsq
+*.nsi
+*.nsd
+*.nog
+*.nog
+*.nal
+
+# Conda environments
+.conda/
+env/
+
+# Logs and reports
+nohup.out
+*.log
+*.err
+slurm-*.out
+trace*.txt
+report*.html
+timeline*.html
+dag*.html
+dag*.dot
+
+# Temp and cache
+tmp/
+temp/
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Custom config (may contain local paths)
+custom.config
+local.config
