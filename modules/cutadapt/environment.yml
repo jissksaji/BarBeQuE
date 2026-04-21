@@ -1,0 +1,7 @@
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  -  cutadapt=5.2
+  -  xopen-2.0

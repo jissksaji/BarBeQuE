@@ -16,6 +16,8 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 //include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
 //include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
 //include { CRABS_COMPUTE_BUFFER } from './../modules/crabs/compute_buffer'
+include { CUTADAPT_INSILICOPCR}            from './../modules/cutadapt'
+
 
 workflow BARBEQUE {
 
@@ -30,7 +32,7 @@ workflow BARBEQUE {
     samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists:true)) : channel.value([])
 
     // The pre-installed taxdump folder
-//    ch_taxdump = file(params.references.taxdump)
+    ch_taxdump = file(params.references.taxdump)
 
 //    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
 //
@@ -84,9 +86,10 @@ workflow BARBEQUE {
             ], d
         ]
     }.set { ch_primers_with_db }
-    ch_primers_with_db.view()}
-    
 
+    CUTADAPT_INSILICOPCR(ch_primers_with_db)
+
+}
 //
 //    // perform insilico pcr, takes: [meta, database]
 //    CRABS_INSILICOPCR(

@@ -89,7 +89,17 @@
         "crabs_insilicopcr_options": {
           "type": "string",
           "description": "A set of custom options to pass to the in-silico PCR process"
-        }
+        },
+        "cutadapt_overlap": {
+          "type": "integer",
+          "default": 2,
+          "description": "Minimum overlap for cutadapt primer matching"
+        },
+        "cutadapt_error_rate": {
+        "type": "number",
+        "default": 0.2,
+        "description": "Maximum error rate for cutadapt primer matching"
+        } 
       },
       "required": ["cluster_id"]
     }

@@ -1,10 +1,13 @@
-process CRABS_COMPUTE_BUFFER {
-
-    output:
-    env(buffersize)
-
-    script:
-    """
-    buffersize=\$(awk -F'\\t' 'length(\$11) > max { max=length(\$11) } END { print max*2 }' ${params.custom_db})
-    """
-}
+//process COMPUTE_BUFFER {
+//
+//    input:
+//    path(db)
+//
+//    output:
+//    env(buffersize)
+//
+//    script:
+//    """
+//    buffersize=\$(awk '/^>/{if(seq) print length(seq); seq=""} !/^>/{seq=seq\$0} END{print length(seq)*2}' $db | sort -n | tail -1)
+//    """
+//}
