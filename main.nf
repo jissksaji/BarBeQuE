@@ -18,7 +18,7 @@ git@github.com:bio-raum/barbeque.git
 params.version = workflow.manifest.version
 
 include { BARBEQUE }            from './workflows/barbeque'
-include { BUILD_REFERENCES }    from './workflows/build_references'
+//include { BUILD_REFERENCES }    from './workflows/build_references'
 include { PIPELINE_COMPLETION } from './subworkflows/pipeline_completion'
 include { paramsSummaryLog }    from 'plugin/nf-schema'
 
@@ -35,13 +35,15 @@ workflow {
     // Print summary of supplied parameters
     log.info paramsSummaryLog(workflow)
 
-    if (params.build_references) {
-        BUILD_REFERENCES()
-    } else {
-        BARBEQUE()
-        multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
-    }
+    //if (params.build_references) {
+    //    BUILD_REFERENCES()
+    //} else {
+    //    BARBEQUE()
+    //    multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
+    //}
     
+    //added from block before as we are not dealing withreferences
+    BARBEQUE()
     PIPELINE_COMPLETION()
 
 }

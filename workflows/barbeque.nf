@@ -2,20 +2,20 @@
 include { INPUT_CHECK }                 from './../modules/input_check'
 include { MULTIQC }                     from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
-include { CRABS_INSILICOPCR }           from './../modules/crabs/insilico_pcr'
-include { CRABS_DEREPLICATE }           from './../modules/crabs/dereplicate'
-include { CRABS_FILTER }                from './../modules/crabs/filter'
-include { CRABS_SUBSET }                from './../modules/crabs/subset'
-include { CRABS_DIVERSITY_FIGURE }      from './../modules/crabs/diversity_figure'
-include { VSEARCH_CLUSTER_FAST }        from './../modules/vsearch/cluster_fast'
-include { CRABS_AMPLIFICATION_EFFICENCY_FIGURE } from './../modules/crabs/amplification_efficency_figure'
-include { CRABS_AMPLICON_LENGTH_FIGURE }from './../modules/crabs/amplicon_length_figure'
-include { HELPER_CLUSTER_CONSENSUS }    from './../modules/helper/cluster_consensus'
+//include { CRABS_INSILICOPCR }           from './../modules/crabs/insilico_pcr'
+//include { CRABS_DEREPLICATE }           from './../modules/crabs/dereplicate'
+//include { CRABS_FILTER }                from './../modules/crabs/filter'
+//include { CRABS_SUBSET }                from './../modules/crabs/subset'
+//include { CRABS_DIVERSITY_FIGURE }      from './../modules/crabs/diversity_figure'
+//include { VSEARCH_CLUSTER_FAST }        from './../modules/vsearch/cluster_fast'
+//include { CRABS_AMPLIFICATION_EFFICENCY_FIGURE } from './../modules/crabs/amplification_efficency_figure'
+//include { CRABS_AMPLICON_LENGTH_FIGURE }from './../modules/crabs/amplicon_length_figure'
+//include { HELPER_CLUSTER_CONSENSUS }    from './../modules/helper/cluster_consensus'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file'
-include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
-include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
-include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
-include { CRABS_COMPUTE_BUFFER } from './../modules/crabs/compute_buffer'
+//include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
+//include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
+//include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
+//include { CRABS_COMPUTE_BUFFER } from './../modules/crabs/compute_buffer'
 
 workflow BARBEQUE {
 
@@ -30,18 +30,18 @@ workflow BARBEQUE {
     samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists:true)) : channel.value([])
 
     // The pre-installed taxdump folder
-    ch_taxdump = file(params.references.taxdump)
+//    ch_taxdump = file(params.references.taxdump)
 
-    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
-
-    // Check if the specified taxon is valid
-    if (params.taxon) {
-        taxon_valid = valid_taxon(params.taxon)
-        if (!taxon_valid) {
-          log.warn "Specified what appears to be an invalid taxon name - aborting!"
-          System.exit(1)
-        }
-    }
+//    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
+//
+//    // Check if the specified taxon is valid
+//    if (params.taxon) {
+//        taxon_valid = valid_taxon(params.taxon)
+//        if (!taxon_valid) {
+//          log.warn "Specified what appears to be an invalid taxon name - aborting!"
+//          System.exit(1)
+//        }
+//    }
 
     // the database to use - either pre-installed or user-provided
     // Pre-installed can be a list, coma-separated:  db1,db2,db3
@@ -66,169 +66,172 @@ workflow BARBEQUE {
 
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
-    CRABS_COMPUTE_BUFFER()
+    //CRABS_COMPUTE_BUFFER()
 
     /*
      Combine each primer set with all requested databases
      [ meta, database_meta, database_path ]
     */
-    INPUT_CHECK.out.primers.combine(ch_dbs).map { m,n,d ->
-    [
-        [ 
-            primer: m.primer,
-            fwd: m.fwd,
-            rev: m.rev,
-            min: m.min,
-            max: m.max,
-            db: n.id
-        ], d
-    ]
-    }.combine(CRABS_COMPUTE_BUFFER.out).map 
-    { meta, db, buffersize ->[ meta + [buffersize: buffersize.toInteger()], db ]}.set { ch_primers_with_db }
+     INPUT_CHECK.out.primers.combine(ch_dbs).map { m,n,d ->
+        [
+            [ 
+                primer: m.primer,
+                fwd: m.fwd,
+                rev: m.rev,
+                min: m.min,
+                max: m.max,
+                db: n.id
+            ], d
+        ]
+    }.set { ch_primers_with_db }
+    ch_primers_with_db.view()}
+    
 
-    // perform insilico pcr, takes: [meta, database]
-    CRABS_INSILICOPCR(
-        ch_primers_with_db
-    )
-    ch_versions = ch_versions.mix(CRABS_INSILICOPCR.out.versions)
+//
+//    // perform insilico pcr, takes: [meta, database]
+//    CRABS_INSILICOPCR(
+//        ch_primers_with_db
+//    )
+//    ch_versions = ch_versions.mix(CRABS_INSILICOPCR.out.versions)
+//
+//    CRABS_INSILICOPCR.out.txt.branch { m,t ->
+//        valid: file(t).size() > 0
+//        invalid: file(t).size() == 0
+//    }.set { ch_insilico_by_status }
+//
+//    ch_insilico_by_status.invalid.subscribe { m,t ->
+//        log.warn "${m.primer} did not produce any pcr products, stopping primer set"
+//    }
+//
+//    // dereplicate in-silico amplicons, takes [meta, txt]
+//    CRABS_DEREPLICATE(
+//        ch_insilico_by_status.valid
+//    )
+//    ch_versions = ch_versions.mix(CRABS_DEREPLICATE.out.versions)
+//
+//    // Filter hits, takes [meta, txt]
+//    CRABS_FILTER(
+//        CRABS_DEREPLICATE.out.txt
+//    )
+//    ch_versions = ch_versions.mix(CRABS_FILTER.out.versions)
+//
+//    // fast clustering of crabs OTUs
+//    VSEARCH_CLUSTER_FAST(
+//        CRABS_FILTER.out.fasta
+//    )
+//    ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
+//
+//    // Cluster consensus
+//    HELPER_CLUSTER_CONSENSUS(
+//        VSEARCH_CLUSTER_FAST.out.uc.join(CRABS_FILTER.out.txt),
+//        ch_taxdump
+//    )
+//    ch_versions = ch_versions.mix(HELPER_CLUSTER_CONSENSUS.out.versions)
+//
+//    HELPER_CLUSTER_CONSENSUS.out.txt.map { m, t ->
+//        tuple(m.db, m, t)
+//    }.combine(
+//        ch_dbs.map { n, d ->
+//            tuple(n.id, d)
+//        }, by: 0
+//    ).map { k, m, t, d ->
+//        tuple(m, t, d)
+//    }.set { ch_cluster_with_db }
+//
+//    // Amplicon size distribution
+//    HELPER_CONSENSUS_DISTRIBUTION(
+//        ch_cluster_with_db
+//    )
+//    ch_versions = ch_versions.mix(HELPER_CONSENSUS_DISTRIBUTION.out.versions)
+//    multiqc_files = multiqc_files.mix(HELPER_CONSENSUS_DISTRIBUTION.out.json)
+//
+//    // convert the consensus file into a histogram of amplicon lengths
+//    HELPER_CONSENSUS_HISTOGRAM(
+//        HELPER_CLUSTER_CONSENSUS.out.txt
+//    )
+//    multiqc_files = multiqc_files.mix(HELPER_CONSENSUS_HISTOGRAM.out.json)
+//    ch_versions = ch_versions.mix(HELPER_CONSENSUS_HISTOGRAM.out.versions)
+//
+//    // If a taxon is provided, perform additional visualisation/filtering
+//    if (params.taxon) {
+//
+//        // Analyse the coverage of the desired taxonomic level
+//        HELPER_TAXONOMIC_COVERAGE(
+//            HELPER_CLUSTER_CONSENSUS.out.txt.map { m,t ->
+//                tuple(m.db, m, t)
+//            }.combine(
+//                ch_dbs.map { m,d ->
+//                    tuple(m.id,d)
+//                }, by: 0
+//            ).map { k, m, s, d ->
+//                tuple(m,s,d)
+//            },
+//            params.taxon
+//        )
+//
+//        // Generate a subset based on the --taxon argument
+//        CRABS_SUBSET(
+//            CRABS_FILTER.out.txt,
+//            params.taxon
+//        )
+//
+//        CRABS_SUBSET.out.txt.branch { m,t ->
+//            valid: t.size() > 0
+//            invalid: t.size() == 0
+//        }.set { ch_subset_by_status }
+//
+//        ch_subset_by_status.invalid.subscribe {m,t ->
+//            log.warn "No hits left after subsetting ${m.primer} with ${params.taxon} - stopping."
+//        }
+//        
+//        // Visualize the length distribution of putative amplicons
+//        CRABS_AMPLICON_LENGTH_FIGURE(
+//            ch_subset_by_status.valid
+//        )
+//
+//        // Visualize diversity of amplicons
+//        CRABS_DIVERSITY_FIGURE(
+//            ch_subset_by_status.valid
+//        )
+//
+//        // Combine each subset with the correct database
+//        ch_subset_by_status.valid.map {m, s ->
+//            tuple(m.db,m,s)
+//        }.combine(
+//            ch_dbs.map { m,d ->
+//                tuple(m.id,d)
+//            }, by: 0
+//        ).map { k, m, s, d ->
+//            tuple(m,s,d)
+//        }.set { ch_amplicons_with_db }
+//
+//        // visualize amplification efficency
+//        CRABS_AMPLIFICATION_EFFICENCY_FIGURE(
+//            ch_amplicons_with_db,
+//            params.taxon
+//        )
+//    }
+//
+//    CUSTOM_DUMPSOFTWAREVERSIONS(
+//        ch_versions.unique().collectFile(name: 'collated_versions.yml')
+//    )
+//
+//    // Combine by meta dict to generate separate reports for each primer-db combination
+//    multiqc_by_set = multiqc_files.groupTuple(by: 0)
+//
+//    MULTIQC(
+//        multiqc_by_set,
+//        CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
+//        ch_multiqc_config,
+//        ch_multiqc_logo
+//    )
+//
+//    emit:
+//    qc = MULTIQC.out.html
+//}
+//
 
-    CRABS_INSILICOPCR.out.txt.branch { m,t ->
-        valid: file(t).size() > 0
-        invalid: file(t).size() == 0
-    }.set { ch_insilico_by_status }
-
-    ch_insilico_by_status.invalid.subscribe { m,t ->
-        log.warn "${m.primer} did not produce any pcr products, stopping primer set"
-    }
-
-    // dereplicate in-silico amplicons, takes [meta, txt]
-    CRABS_DEREPLICATE(
-        ch_insilico_by_status.valid
-    )
-    ch_versions = ch_versions.mix(CRABS_DEREPLICATE.out.versions)
-
-    // Filter hits, takes [meta, txt]
-    CRABS_FILTER(
-        CRABS_DEREPLICATE.out.txt
-    )
-    ch_versions = ch_versions.mix(CRABS_FILTER.out.versions)
-
-    // fast clustering of crabs OTUs
-    VSEARCH_CLUSTER_FAST(
-        CRABS_FILTER.out.fasta
-    )
-    ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
-
-    // Cluster consensus
-    HELPER_CLUSTER_CONSENSUS(
-        VSEARCH_CLUSTER_FAST.out.uc.join(CRABS_FILTER.out.txt),
-        ch_taxdump
-    )
-    ch_versions = ch_versions.mix(HELPER_CLUSTER_CONSENSUS.out.versions)
-
-    HELPER_CLUSTER_CONSENSUS.out.txt.map { m, t ->
-        tuple(m.db, m, t)
-    }.combine(
-        ch_dbs.map { n, d ->
-            tuple(n.id, d)
-        }, by: 0
-    ).map { k, m, t, d ->
-        tuple(m, t, d)
-    }.set { ch_cluster_with_db }
-
-    // Amplicon size distribution
-    HELPER_CONSENSUS_DISTRIBUTION(
-        ch_cluster_with_db
-    )
-    ch_versions = ch_versions.mix(HELPER_CONSENSUS_DISTRIBUTION.out.versions)
-    multiqc_files = multiqc_files.mix(HELPER_CONSENSUS_DISTRIBUTION.out.json)
-
-    // convert the consensus file into a histogram of amplicon lengths
-    HELPER_CONSENSUS_HISTOGRAM(
-        HELPER_CLUSTER_CONSENSUS.out.txt
-    )
-    multiqc_files = multiqc_files.mix(HELPER_CONSENSUS_HISTOGRAM.out.json)
-    ch_versions = ch_versions.mix(HELPER_CONSENSUS_HISTOGRAM.out.versions)
-
-    // If a taxon is provided, perform additional visualisation/filtering
-    if (params.taxon) {
-
-        // Analyse the coverage of the desired taxonomic level
-        HELPER_TAXONOMIC_COVERAGE(
-            HELPER_CLUSTER_CONSENSUS.out.txt.map { m,t ->
-                tuple(m.db, m, t)
-            }.combine(
-                ch_dbs.map { m,d ->
-                    tuple(m.id,d)
-                }, by: 0
-            ).map { k, m, s, d ->
-                tuple(m,s,d)
-            },
-            params.taxon
-        )
-
-        // Generate a subset based on the --taxon argument
-        CRABS_SUBSET(
-            CRABS_FILTER.out.txt,
-            params.taxon
-        )
-
-        CRABS_SUBSET.out.txt.branch { m,t ->
-            valid: t.size() > 0
-            invalid: t.size() == 0
-        }.set { ch_subset_by_status }
-
-        ch_subset_by_status.invalid.subscribe {m,t ->
-            log.warn "No hits left after subsetting ${m.primer} with ${params.taxon} - stopping."
-        }
-        
-        // Visualize the length distribution of putative amplicons
-        CRABS_AMPLICON_LENGTH_FIGURE(
-            ch_subset_by_status.valid
-        )
-
-        // Visualize diversity of amplicons
-        CRABS_DIVERSITY_FIGURE(
-            ch_subset_by_status.valid
-        )
-
-        // Combine each subset with the correct database
-        ch_subset_by_status.valid.map {m, s ->
-            tuple(m.db,m,s)
-        }.combine(
-            ch_dbs.map { m,d ->
-                tuple(m.id,d)
-            }, by: 0
-        ).map { k, m, s, d ->
-            tuple(m,s,d)
-        }.set { ch_amplicons_with_db }
-
-        // visualize amplification efficency
-        CRABS_AMPLIFICATION_EFFICENCY_FIGURE(
-            ch_amplicons_with_db,
-            params.taxon
-        )
-    }
-
-    CUSTOM_DUMPSOFTWAREVERSIONS(
-        ch_versions.unique().collectFile(name: 'collated_versions.yml')
-    )
-
-    // Combine by meta dict to generate separate reports for each primer-db combination
-    multiqc_by_set = multiqc_files.groupTuple(by: 0)
-
-    MULTIQC(
-        multiqc_by_set,
-        CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
-        ch_multiqc_config,
-        ch_multiqc_logo
-    )
-
-    emit:
-    qc = MULTIQC.out.html
-}
-
-// turn the params map to a JSON file
+//// turn the params map to a JSON file
 def dumpParametersToJSON(outdir) {
     def timestamp = new java.util.Date().format('yyyy-MM-dd_HH-mm-ss')
     def filename  = "params_${timestamp}.json"
@@ -240,37 +243,38 @@ def dumpParametersToJSON(outdir) {
     temp_pf.delete()
     return file("${outdir}/pipeline_info/params_${timestamp}.json")
 }
-
-def valid_taxon(taxon) {
-    log.info "Checking if ${taxon} is a valid taxon.."
-
-    try {
-
-        def j = new groovy.json.JsonSlurper().parseText(new URL("https://rest.ensembl.org/taxonomy/name/${taxon.toString()}?content-type=application/json").getText())
-
-        if (j instanceof ArrayList) {
-            
-            def data = j[0]
-
-            // if we see this key, it means that the API was able to find a match in the database - we assume the taxon is valid. 
-            if (data.containsKey("scientific_name")) {
-                return true
-            }
-        // This is probably not needed, invalid taxa seem to raise a 400 error instead - see below. 
-        } else if (j.containsKey("error")) {
-            log.warn "Invalid taxon argument found!"
-            return false
-        }
-
-        return false // unspecified error
-
-    } catch(java.io.IOException ex) {
-        // Service returns error, probably invalid taxon argument.
-       return false
-    // any other error, most likely service unreachable
-    } catch(err) {
-        log.warn "Unspecified error encountered, assuming taxon is valid.."
-        return true
-    }
-
-}
+//
+//def valid_taxon(taxon) {
+//    log.info "Checking if ${taxon} is a valid taxon.."
+//
+//    try {
+//
+//        def j = new groovy.json.JsonSlurper().parseText(new URL("https://rest.ensembl.org/taxonomy/name/${taxon.toString()}?content-type=application/json").getText())
+//
+//        if (j instanceof ArrayList) {
+//            
+//            def data = j[0]
+//
+//            // if we see this key, it means that the API was able to find a match in the database - we assume the taxon is valid. 
+//            if (data.containsKey("scientific_name")) {
+//                return true
+//            }
+//        // This is probably not needed, invalid taxa seem to raise a 400 error instead - see below. 
+//        } else if (j.containsKey("error")) {
+//            log.warn "Invalid taxon argument found!"
+//            return false
+//        }
+//
+//        return false // unspecified error
+//
+//    } catch(java.io.IOException ex) {
+//        // Service returns error, probably invalid taxon argument.
+//       return false
+//    // any other error, most likely service unreachable
+//    } catch(err) {
+//        log.warn "Unspecified error encountered, assuming taxon is valid.."
+//        return true
+//    }
+//
+//}
+//

@@ -14,7 +14,7 @@ process CRABS_INSILICOPCR {
 
     output:
     tuple val(meta), path('*insilico.txt'), emit: txt
-    path('versions.yml'), emit: versions
+    path('versiogirns.yml'), emit: versions
 
     script:
 
