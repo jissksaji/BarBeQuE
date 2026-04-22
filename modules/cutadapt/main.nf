@@ -5,7 +5,7 @@ process CUTADAPT_INSILICOPCR {
     label 'short_parallel'
 
     conda "${moduleDir}/environment.yml"
-    container "quay.io/biocontainers/cutadapt:4.6--py39hf95cd2a_0"
+    container "quay.io/biocontainers/cutadapt:5.2--py313h8c92656_1"
 
     input:
     tuple val(meta), path(db)
@@ -19,15 +19,17 @@ process CUTADAPT_INSILICOPCR {
     def prefix  = task.ext.prefix ?: "${meta.primer}_${meta.db}"
 
     """
-    cutadapt $args \\
-        -g ${meta.fwd} \\
-        -a ${meta.rev} \\
-        --overlap ${params.cutadapt_overlap} \\
-        -e ${params.cutadapt_error_rate} \\
-        --cores ${task.cpus} \\
-        --buffer-size  338563228  \\
-        -o ${prefix}_insilico.fasta \\
-        $db
+cutadapt $args \
+    -g "${meta.fwd}...${meta.rev}" \
+    --overlap ${params.cutadapt_overlap} \
+    -e ${params.cutadapt_error_rate} \
+    --cores ${task.cpus} \
+    --buffer-size 338563228 \
+    --discard-untrimmed \
+    -o ${prefix}_insilico.fasta \
+    --no-indels \
+    --revcomp \
+    ${db}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

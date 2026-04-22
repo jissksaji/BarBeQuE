@@ -32,7 +32,8 @@ workflow BARBEQUE {
     samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists:true)) : channel.value([])
 
     // The pre-installed taxdump folder
-    ch_taxdump = file(params.references.taxdump)
+   
+   // ch_taxdump = file(params.references.taxdump)
 
 //    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
 //
@@ -87,7 +88,23 @@ workflow BARBEQUE {
         ]
     }.set { ch_primers_with_db }
 
-    CUTADAPT_INSILICOPCR(ch_primers_with_db)
+    CUTADAPT_INSILICOPCR(
+        ch_primers_with_db
+        )
+        ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
+
+
+    CUTADAPT_INSILICOPCR.out.fasta.branch { m,f ->
+    valid:   file(f).size() > 0   // amplicons found
+    invalid: file(f).size() == 0  // no amplicons
+    }.set { ch_insilico_by_status }
+    ch_insilico_by_status.invalid.subscribe { m,t ->
+    log.warn "${m.primer} did not produce any pcr products, stopping primer set"
+}
+
+
+
+
 
 }
 //
