@@ -2,7 +2,7 @@ process CUTADAPT_INSILICOPCR {
 
     tag "${meta.primer}|${meta.db}"
 
-    label 'short_parallel'
+    label 'medium_parallel'
 
     conda "${moduleDir}/environment.yml"
     container "quay.io/biocontainers/cutadapt:5.2--py313h8c92656_1"
