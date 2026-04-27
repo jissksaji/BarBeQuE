@@ -2,6 +2,7 @@
 include { INPUT_CHECK }                 from './../modules/input_check'
 include { MULTIQC }                     from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
+include {CUSTOM_DB_FILTER}                 from './../modules/seqkit/custom_db_filter'
 //include { CRABS_INSILICOPCR }           from './../modules/crabs/insilico_pcr'
 //include { CRABS_DEREPLICATE }           from './../modules/crabs/dereplicate'
 //include { CRABS_FILTER }                from './../modules/crabs/filter'
@@ -15,8 +16,9 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 //include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
 //include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
 //include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
-//include { CRABS_COMPUTE_BUFFER } from './../modules/crabs/compute_buffer'
+include { COMPUTE_BUFFER }                  from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR}            from './../modules/cutadapt'
+
 
 
 workflow BARBEQUE {
@@ -71,6 +73,13 @@ workflow BARBEQUE {
     STAGE_SAMPLESHEET(samplesheet)
     //CRABS_COMPUTE_BUFFER()
 
+    //filter custom DB if provided
+    if (params.custom_db_filter){
+        CUSTOM_DB_FILTER(ch_dbs)
+        ch_versions=ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
+        ch_dbs=CUSTOM_DB_FILTER.out.fasta
+    }
+
     /*
      Combine each primer set with all requested databases
      [ meta, database_meta, database_path ]
@@ -87,6 +96,12 @@ workflow BARBEQUE {
             ], d
         ]
     }.set { ch_primers_with_db }
+
+
+    COMPUTE_BUFFER(
+        ch_primers_with_db
+        )
+        ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
 
     CUTADAPT_INSILICOPCR(
         ch_primers_with_db

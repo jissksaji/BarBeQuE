@@ -1,6 +1,6 @@
 channels:
-  - conda-forge
   - bioconda
+  - conda-forge
   - defaults
 dependencies:
-  - gawk
+  - seqkit=2.13.0

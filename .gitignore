@@ -73,3 +73,7 @@ Thumbs.db
 # Custom config (may contain local paths)
 custom.config
 local.config
+results_its2/pipeline_info/pipeline_timeline.html
+results_its2/pipeline_info/pipeline_report.html
+results_its2/pipeline_info/pipeline_trace.txt
+results_its2/pipeline_info/pipeline_dag.dot
