@@ -8,7 +8,7 @@ process CUTADAPT_INSILICOPCR {
     container "quay.io/biocontainers/cutadapt:5.2--py313h8c92656_1"
 
     input:
-    tuple val(meta), path(db)
+    tuple val(meta), path(db),env(buffersize)
 
     output:
     tuple val(meta), path('*_insilico.fasta'), emit: fasta
@@ -24,7 +24,7 @@ cutadapt $args \
     --overlap ${params.cutadapt_overlap} \
     -e ${params.cutadapt_error_rate} \
     --cores ${task.cpus} \
-    --buffer-size 338563228 \
+    --buffer-size \$buffersize \
     --discard-untrimmed \
     -o ${prefix}_insilico.fasta \
     --no-indels \
@@ -32,8 +32,8 @@ cutadapt $args \
     ${db}
 
     cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
+"${task.process}":
         cutadapt: \$(cutadapt --version)
-    END_VERSIONS
+END_VERSIONS
     """
 }

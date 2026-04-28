@@ -17,15 +17,25 @@ process CUSTOM_DB_FILTER {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def pattern = params.custom_db_filter_pattern
+    
+    //length filter if both min and max are given
+    def do_length_filter =params.custom_db_min_length && params.custom_db_max_length
+    def len_filter = do_length_filter ?
+         "|seqkit seq" + 
+         " --min-len ${params.custom_db_min_length}"+
+         " --max-len ${params.custom_db_max_length}"+
+        (params.custom_db_max_n ? " --max-ambig ${params.custom_db_max_n}": "")+
+        " --threads ${task.cpus}" : ""
 
 
     """
-    PATTERN="environmental|uncultured|metagenom|unidentified|unknown|unclassified|incertae[ ._-]?sedis|synthetic|artificial|construct|recombinant|transgenic|predicted|XM_|XR_|unverified|low[ ._-]?quality|contaminant|chimeric|misidentified"
 
     seqkit grep -n -v -r -i \\
         --threads ${task.cpus} \\
-        -p "\$PATTERN" \\
+        -p "${pattern}" \\
         ${db} \\
+        ${len_filter} \\
         -o ${prefix}.cleaned.fasta
 
     #seqkit stats ${db} ${prefix}.cleaned.fasta \\
@@ -33,8 +43,8 @@ process CUSTOM_DB_FILTER {
     #    -o ${prefix}.stats.txt 
 
     cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
+"${task.process}":
         seqkit: \$(seqkit version | sed 's/seqkit //')
-    END_VERSIONS
+END_VERSIONS
     """
 }

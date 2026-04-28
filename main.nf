@@ -39,7 +39,7 @@ workflow {
     //    BUILD_REFERENCES()
     //} else {
     //    BARBEQUE()
-    //    multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
+      //multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
     //}
     
     //added from block before as we are not dealing withreferences

@@ -71,13 +71,13 @@ workflow BARBEQUE {
 
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
-    //CRABS_COMPUTE_BUFFER()
 
     //filter custom DB if provided
-    if (params.custom_db_filter){
+    if (params.custom_db) {
         CUSTOM_DB_FILTER(ch_dbs)
-        ch_versions=ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
-        ch_dbs=CUSTOM_DB_FILTER.out.fasta
+        ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
+        ch_dbs = CUSTOM_DB_FILTER.out.fasta
+        COMPUTE_BUFFER(CUSTOM_DB_FILTER.out.fasta)
     }
 
     /*
@@ -97,17 +97,13 @@ workflow BARBEQUE {
         ]
     }.set { ch_primers_with_db }
 
+    
 
-    COMPUTE_BUFFER(
-        ch_primers_with_db
-        )
-        ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
 
     CUTADAPT_INSILICOPCR(
-        ch_primers_with_db
-        )
-        ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
-
+        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize)
+    )
+    ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
 
     CUTADAPT_INSILICOPCR.out.fasta.branch { m,f ->
     valid:   file(f).size() > 0   // amplicons found
@@ -116,12 +112,23 @@ workflow BARBEQUE {
     ch_insilico_by_status.invalid.subscribe { m,t ->
     log.warn "${m.primer} did not produce any pcr products, stopping primer set"
 }
+    CUSTOM_DUMPSOFTWAREVERSIONS(
+        ch_versions.unique().collectFile(name: 'collated_versions.yml')
+    )
 
+    // Combine by meta dict to generate separate reports for each primer-db combination
+    multiqc_by_set = multiqc_files.groupTuple(by: 0)
 
-
-
-
+    MULTIQC(
+        multiqc_by_set,
+        CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
+        ch_multiqc_config,
+        ch_multiqc_logo
+    )
+        emit:
+    qc = MULTIQC.out.html
 }
+
 //
 //    // perform insilico pcr, takes: [meta, database]
 //    CRABS_INSILICOPCR(

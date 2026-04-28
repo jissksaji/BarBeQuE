@@ -8,15 +8,15 @@ process COMPUTE_BUFFER {
 
     input:
     tuple val(meta), path(db)
-
     output:
-    env buffersize
+    env buffersize      ,emit: buffersize
     path "versions.yml", emit: versions
 
     script:
     """
     buffersize=\$(seqkit stats ${db} | awk 'NR>1 {print \$NF}' | tr -d ',' | sort -nr | head -n 1)
-    
+    buffersize=\$((buffersize * 2))
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
