@@ -18,7 +18,7 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 //include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
 include { COMPUTE_BUFFER }                  from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR}            from './../modules/cutadapt'
-
+include {VSEARCH_DEREPLICATION}            from './../modules/vsearch/dereplication'
 
 
 workflow BARBEQUE {
@@ -66,8 +66,12 @@ workflow BARBEQUE {
     }
     ch_dbs = channel.fromList(these_dbs)
 
+    ch_dbs.view { ">>> [1] DB: ${it}" }
+
     // Check if the samplesheet is valid
     INPUT_CHECK(samplesheet)
+
+    INPUT_CHECK.out.primers.view { ">>> [2] PRIMER: ${it}" }
 
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
@@ -77,8 +81,13 @@ workflow BARBEQUE {
         CUSTOM_DB_FILTER(ch_dbs)
         ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
         ch_dbs = CUSTOM_DB_FILTER.out.fasta
-        COMPUTE_BUFFER(CUSTOM_DB_FILTER.out.fasta)
+
+        ch_dbs.view { ">>> [3] FILTERED DB: ${it}" }
     }
+
+    COMPUTE_BUFFER(ch_dbs)
+
+    COMPUTE_BUFFER.out.buffersize.view { ">>> [4] BUFFER: ${it}" }
 
     /*
      Combine each primer set with all requested databases
@@ -97,21 +106,33 @@ workflow BARBEQUE {
         ]
     }.set { ch_primers_with_db }
 
-    
-
+    ch_primers_with_db.view { ">>> [5] PRIMER+DB: ${it}" }
 
     CUTADAPT_INSILICOPCR(
-        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize)
+        ch_primers_with_db
+            .combine(COMPUTE_BUFFER.out.buffersize)
+            .view { ">>> [6] INTO CUTADAPT: ${it}" }
     )
     ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
+
+    CUTADAPT_INSILICOPCR.out.fasta.view { ">>> [7] OUT CUTADAPT: ${it}" }
 
     CUTADAPT_INSILICOPCR.out.fasta.branch { m,f ->
     valid:   file(f).size() > 0   // amplicons found
     invalid: file(f).size() == 0  // no amplicons
     }.set { ch_insilico_by_status }
+
+    ch_insilico_by_status.valid.view { ">>> [8] VALID: ${it}" }
+
     ch_insilico_by_status.invalid.subscribe { m,t ->
     log.warn "${m.primer} did not produce any pcr products, stopping primer set"
 }
+    VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
+    ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
+
+    VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
+
+
     CUSTOM_DUMPSOFTWAREVERSIONS(
         ch_versions.unique().collectFile(name: 'collated_versions.yml')
     )
