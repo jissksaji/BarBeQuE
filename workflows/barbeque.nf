@@ -1,14 +1,14 @@
 // Modules
-include { INPUT_CHECK }                 from './../modules/input_check'
-include { MULTIQC }                     from './../modules/multiqc/main'
+include { INPUT_CHECK } from './../modules/input_check'
+include { MULTIQC } from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
-include {CUSTOM_DB_FILTER}                 from './../modules/seqkit/custom_db_filter'
+include { CUSTOM_DB_FILTER } from './../modules/seqkit/custom_db_filter'
 //include { CRABS_INSILICOPCR }           from './../modules/crabs/insilico_pcr'
 //include { CRABS_DEREPLICATE }           from './../modules/crabs/dereplicate'
 //include { CRABS_FILTER }                from './../modules/crabs/filter'
 //include { CRABS_SUBSET }                from './../modules/crabs/subset'
 //include { CRABS_DIVERSITY_FIGURE }      from './../modules/crabs/diversity_figure'
-//include { VSEARCH_CLUSTER_FAST }        from './../modules/vsearch/cluster_fast'
+include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
 //include { CRABS_AMPLIFICATION_EFFICENCY_FIGURE } from './../modules/crabs/amplification_efficency_figure'
 //include { CRABS_AMPLICON_LENGTH_FIGURE }from './../modules/crabs/amplicon_length_figure'
 //include { HELPER_CLUSTER_CONSENSUS }    from './../modules/helper/cluster_consensus'
@@ -16,53 +16,62 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 //include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
 //include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
 //include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
-include { COMPUTE_BUFFER }                  from './../modules/seqkit/compute_buffer'
-include { CUTADAPT_INSILICOPCR}            from './../modules/cutadapt'
-include {VSEARCH_DEREPLICATION}            from './../modules/vsearch/dereplication'
+include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
+include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
+include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 
 
 workflow BARBEQUE {
 
     main:
 
-    ch_multiqc_config = params.multiqc_config   ? channel.fromPath(params.multiqc_config, checkIfExists: true).collect() : channel.value([])
-    ch_multiqc_logo   = params.multiqc_logo     ? channel.fromPath(params.multiqc_logo, checkIfExists: true).collect() : channel.value([])
+    ch_multiqc_config = params.multiqc_config ? channel.fromPath(params.multiqc_config, checkIfExists: true).collect() : channel.value([])
+    ch_multiqc_logo = params.multiqc_logo ? channel.fromPath(params.multiqc_logo, checkIfExists: true).collect() : channel.value([])
 
     ch_versions = channel.from([])
     multiqc_files = channel.from([])
 
-    samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists:true)) : channel.value([])
+    samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists: true)) : channel.value([])
 
     // The pre-installed taxdump folder
-   
-   // ch_taxdump = file(params.references.taxdump)
 
-//    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
-//
-//    // Check if the specified taxon is valid
-//    if (params.taxon) {
-//        taxon_valid = valid_taxon(params.taxon)
-//        if (!taxon_valid) {
-//          log.warn "Specified what appears to be an invalid taxon name - aborting!"
-//          System.exit(1)
-//        }
-//    }
+    // ch_taxdump = file(params.references.taxdump)
+
+    //    pipeline_settings = channel.fromPath(dumpParametersToJSON(params.outdir)).collect()
+    //
+    //    // Check if the specified taxon is valid
+    //    if (params.taxon) {
+    //        taxon_valid = valid_taxon(params.taxon)
+    //        if (!taxon_valid) {
+    //          log.warn "Specified what appears to be an invalid taxon name - aborting!"
+    //          System.exit(1)
+    //        }
+    //    }
 
     // the database to use - either pre-installed or user-provided
     // Pre-installed can be a list, coma-separated:  db1,db2,db3
     ch_dbs = channel.from([])
     these_dbs = []
     if (params.custom_db) {
-        these_dbs <<  [ [ "id": "custom" ], file(params.custom_db, checkIfExists: true) ]
-    } else if (params.dbs) {
+        these_dbs << [["id": "custom"], file(params.custom_db, checkIfExists: true)]
+    }
+    else if (params.dbs) {
         valid_databases = params.references.databases.keySet()
-        params.dbs.split(",").collect{ it.toLowerCase()}.each { db ->
-            if (!valid_databases.contains(db)) {
-                log.info "Not a valid database: ${db}\nValid options are: ${valid_databases}\n"
-                System.exit(1)
+        params.dbs
+            .split(",")
+            .collect { it.toLowerCase() }
+            .each { db ->
+                if (!valid_databases.contains(db)) {
+                    log.info("Not a valid database: ${db}\nValid options are: ${valid_databases}\n")
+                    System.exit(1)
+                }
+                these_dbs << [
+                    [
+                        "id": db
+                    ],
+                    file(params.references.databases[db].db, checkIfExists: true),
+                ]
             }
-            these_dbs << [ ["id": db, ], file(params.references.databases[db].db, checkIfExists: true)  ]
-        }
     }
     ch_dbs = channel.fromList(these_dbs)
 
@@ -93,44 +102,53 @@ workflow BARBEQUE {
      Combine each primer set with all requested databases
      [ meta, database_meta, database_path ]
     */
-     INPUT_CHECK.out.primers.combine(ch_dbs).map { m,n,d ->
-        [
-            [ 
-                primer: m.primer,
-                fwd: m.fwd,
-                rev: m.rev,
-                min: m.min,
-                max: m.max,
-                db: n.id
-            ], d
-        ]
-    }.set { ch_primers_with_db }
+    INPUT_CHECK.out.primers
+        .combine(ch_dbs)
+        .map { m, n, d ->
+            [
+                [
+                    primer: m.primer,
+                    fwd: m.fwd,
+                    rev: m.rev,
+                    min: m.min,
+                    max: m.max,
+                    db: n.id,
+                ],
+                d,
+            ]
+        }
+        .set { ch_primers_with_db }
 
     ch_primers_with_db.view { ">>> [5] PRIMER+DB: ${it}" }
 
     CUTADAPT_INSILICOPCR(
-        ch_primers_with_db
-            .combine(COMPUTE_BUFFER.out.buffersize)
-            .view { ">>> [6] INTO CUTADAPT: ${it}" }
+        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize).view { ">>> [6] INTO CUTADAPT: ${it}" }
     )
     ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
 
     CUTADAPT_INSILICOPCR.out.fasta.view { ">>> [7] OUT CUTADAPT: ${it}" }
 
-    CUTADAPT_INSILICOPCR.out.fasta.branch { m,f ->
-    valid:   file(f).size() > 0   // amplicons found
-    invalid: file(f).size() == 0  // no amplicons
-    }.set { ch_insilico_by_status }
+    CUTADAPT_INSILICOPCR.out.fasta
+        .branch { m, f ->
+            valid: file(f).size() > 0
+            invalid: file(f).size() == 0
+        }
+        .set { ch_insilico_by_status }
 
     ch_insilico_by_status.valid.view { ">>> [8] VALID: ${it}" }
 
-    ch_insilico_by_status.invalid.subscribe { m,t ->
-    log.warn "${m.primer} did not produce any pcr products, stopping primer set"
-}
+    ch_insilico_by_status.invalid.subscribe { m, t ->
+        log.warn("${m.primer} did not produce any pcr products, stopping primer set")
+    }
     VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
     ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
 
     VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
+
+    VSEARCH_CLUSTER_FAST(VSEARCH_DEREPLICATION.out.fasta)
+
+    VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
+    VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [11] UC CLUSTERING: ${it}" }
 
 
     CUSTOM_DUMPSOFTWAREVERSIONS(
@@ -144,9 +162,10 @@ workflow BARBEQUE {
         multiqc_by_set,
         CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
         ch_multiqc_config,
-        ch_multiqc_logo
+        ch_multiqc_logo,
     )
-        emit:
+
+    emit:
     qc = MULTIQC.out.html
 }
 
@@ -297,47 +316,12 @@ workflow BARBEQUE {
 //// turn the params map to a JSON file
 def dumpParametersToJSON(outdir) {
     def timestamp = new java.util.Date().format('yyyy-MM-dd_HH-mm-ss')
-    def filename  = "params_${timestamp}.json"
-    def temp_pf   = new File(workflow.launchDir.toString(), ".${filename}")
-    def jsonStr   = groovy.json.JsonOutput.toJson(params)
-    temp_pf.text  = groovy.json.JsonOutput.prettyPrint(jsonStr)
+    def filename = "params_${timestamp}.json"
+    def temp_pf = new File(workflow.launchDir.toString(), ".${filename}")
+    def jsonStr = groovy.json.JsonOutput.toJson(params)
+    temp_pf.text = groovy.json.JsonOutput.prettyPrint(jsonStr)
 
     nextflow.extension.FilesEx.copyTo(temp_pf.toPath(), "${outdir}/pipeline_info/params_${timestamp}.json")
     temp_pf.delete()
     return file("${outdir}/pipeline_info/params_${timestamp}.json")
 }
-//
-//def valid_taxon(taxon) {
-//    log.info "Checking if ${taxon} is a valid taxon.."
-//
-//    try {
-//
-//        def j = new groovy.json.JsonSlurper().parseText(new URL("https://rest.ensembl.org/taxonomy/name/${taxon.toString()}?content-type=application/json").getText())
-//
-//        if (j instanceof ArrayList) {
-//            
-//            def data = j[0]
-//
-//            // if we see this key, it means that the API was able to find a match in the database - we assume the taxon is valid. 
-//            if (data.containsKey("scientific_name")) {
-//                return true
-//            }
-//        // This is probably not needed, invalid taxa seem to raise a 400 error instead - see below. 
-//        } else if (j.containsKey("error")) {
-//            log.warn "Invalid taxon argument found!"
-//            return false
-//        }
-//
-//        return false // unspecified error
-//
-//    } catch(java.io.IOException ex) {
-//        // Service returns error, probably invalid taxon argument.
-//       return false
-//    // any other error, most likely service unreachable
-//    } catch(err) {
-//        log.warn "Unspecified error encountered, assuming taxon is valid.."
-//        return true
-//    }
-//
-//}
-//
