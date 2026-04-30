@@ -147,8 +147,8 @@ workflow BARBEQUE {
 
     VSEARCH_CLUSTER_FAST(VSEARCH_DEREPLICATION.out.fasta)
 
-    VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
-    VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [11] UC CLUSTERING: ${it}" }
+    //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
+    VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
 
 
     CUSTOM_DUMPSOFTWAREVERSIONS(

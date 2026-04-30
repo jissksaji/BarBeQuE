@@ -13,7 +13,7 @@ process VSEARCH_CLUSTER_FAST {
 
     output:
     tuple val(meta), path("*.cluster.uc"), emit: uc
-    tuple val(meta), path("*centroid.fasta"), emit: fasta
+    // tuple val(meta), path("*centroid.fasta"), emit: fasta
     path ("versions.yml"), emit: versions
 
     script:
@@ -25,8 +25,7 @@ process VSEARCH_CLUSTER_FAST {
     --threads ${task.cpus} \
     --qmask none \
     --id 0.97 \
-    --uc ${prefix}.cluster.uc \
-    --centroids ${prefix}.centroid.fasta ${args}
+    --uc ${prefix}.cluster.uc ${args}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
