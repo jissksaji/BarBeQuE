@@ -3,6 +3,8 @@ process VSEARCH_CLUSTER_FAST {
 
     label 'short_parallel'
 
+    publishDir "${params.outdir}/clustering", mode: 'copy'
+
     conda "${moduleDir}/environment.yml"
     container "${workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
         ? 'https://depot.galaxyproject.org/singularity/vsearch:2.27.0--h6a68c12_0'

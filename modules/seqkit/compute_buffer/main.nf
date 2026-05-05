@@ -8,14 +8,15 @@ process COMPUTE_BUFFER {
 
     input:
     tuple val(meta), path(db)
+
     output:
-    env buffersize      ,emit: buffersize
+    env buffersize, emit: buffersize
     path "versions.yml", emit: versions
 
     script:
     """
-    buffersize=\$(seqkit stats ${db} | awk 'NR>1 {print \$NF}' | tr -d ',' | sort -nr | head -n 1)
-    buffersize=\$((buffersize * 2))
+    buffersize=\$(seqkit stats -T ${db} | awk -F'\t' 'NR==2 {print \$8 * 5 + 50000}')
+    buffersize=\$((buffersize * 100))
 
 
     cat <<-END_VERSIONS > versions.yml
@@ -23,4 +24,4 @@ process COMPUTE_BUFFER {
         seqkit: \$(seqkit version | sed 's/seqkit //')
     END_VERSIONS
     """
-    }
+}
