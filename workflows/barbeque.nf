@@ -19,6 +19,8 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
+include { ACCESSION_EXTRACTION } from './../modules/helper/accession_extraction'
+
 
 
 workflow BARBEQUE {
@@ -91,8 +93,10 @@ workflow BARBEQUE {
         ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
         ch_dbs = CUSTOM_DB_FILTER.out.fasta
 
+
         ch_dbs.view { ">>> [3] FILTERED DB: ${it}" }
     }
+    ACCESSION_EXTRACTION(ch_dbs)
 
     COMPUTE_BUFFER(ch_dbs)
 
