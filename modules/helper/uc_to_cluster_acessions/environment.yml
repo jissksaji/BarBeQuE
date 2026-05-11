@@ -1,0 +1,8 @@
+name: uc_to_cluster_accessions
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - gawk
+  - coreutils

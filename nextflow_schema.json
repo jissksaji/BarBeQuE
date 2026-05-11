@@ -47,6 +47,14 @@
           "type": "string",
           "description": "A comma-separated list of pre-installed databases to benchmark against"
         },
+        "taxdump": {
+          "type": "string",
+          "format": "directory-path",
+          "exists": true,
+          "description": "Path to the NCBI taxdump folder.",
+          "help_text": "Provide the path to the NCBI taxdump folder. The folder should contain files such as nodes.dmp, names.dmp, rankedlineage.dmp, merged.dmp, and taxidlineage.dmp.",
+          "fa_icon": "fas fa-folder-open"
+        },
         "list_dbs": {
           "type": "boolean",
           "description": "List installed databases and exit"

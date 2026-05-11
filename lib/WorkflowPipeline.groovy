@@ -26,6 +26,7 @@ class WorkflowPipeline {
             log.info "Pipeline requires a sample sheet as input (--input)"
             System.exit(1)
         }
+        
        
     }
 

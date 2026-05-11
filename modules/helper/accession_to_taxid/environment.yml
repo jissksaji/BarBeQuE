@@ -1,0 +1,9 @@
+name: cluster_accessions_to_taxid
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - gawk
+  - coreutils
+  - gzip

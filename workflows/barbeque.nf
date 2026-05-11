@@ -19,7 +19,8 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
-include { ACCESSION_EXTRACTION } from './../modules/helper/accession_extraction'
+include { CLUSTER_ACCESSIONS_TO_TAXID } from './../modules/helper/accession_to_taxid'
+include { UC_TO_CLUSTER_ACCESSIONS } from './../modules/helper/uc_to_cluster_acessions'
 
 
 
@@ -32,6 +33,20 @@ workflow BARBEQUE {
 
     ch_versions = channel.from([])
     multiqc_files = channel.from([])
+
+
+    if (!params.accession2taxid) {
+        error(
+            """
+    Missing required parameter: --accession2taxid
+    """
+        )
+    }
+
+    ch_accession2taxid = channel.value(
+        file(params.accession2taxid, checkIfExists: true)
+    )
+
 
     samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists: true)) : channel.value([])
 
@@ -96,8 +111,8 @@ workflow BARBEQUE {
 
         ch_dbs.view { ">>> [3] FILTERED DB: ${it}" }
     }
-    ACCESSION_EXTRACTION(ch_dbs)
 
+    //ACCESSION_TO_TAXID(ch_dbs, ch_accession2taxid)
     COMPUTE_BUFFER(ch_dbs)
 
     COMPUTE_BUFFER.out.buffersize.view { ">>> [4] BUFFER: ${it}" }
@@ -153,6 +168,21 @@ workflow BARBEQUE {
 
     //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
     VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
+
+
+    UC_TO_CLUSTER_ACCESSIONS(VSEARCH_CLUSTER_FAST.out.uc)
+    ch_versions = ch_versions.mix(UC_TO_CLUSTER_ACCESSIONS.out.versions)
+
+    UC_TO_CLUSTER_ACCESSIONS.out.tsv.view { ">>> [11] CLUSTER ACCESSIONS: ${it}" }
+
+    CLUSTER_ACCESSIONS_TO_TAXID(
+        UC_TO_CLUSTER_ACCESSIONS.out.tsv,
+        ch_accession2taxid,
+    )
+
+    ch_versions = ch_versions.mix(CLUSTER_ACCESSIONS_TO_TAXID.out.versions)
+
+    CLUSTER_ACCESSIONS_TO_TAXID.out.tsv.view { ">>> [12] CLUSTER ACCESSION TAXID: ${it}" }
 
 
     CUSTOM_DUMPSOFTWAREVERSIONS(
