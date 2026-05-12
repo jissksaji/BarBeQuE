@@ -21,6 +21,7 @@ include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 include { CLUSTER_ACCESSIONS_TO_TAXID } from './../modules/helper/accession_to_taxid'
 include { UC_TO_CLUSTER_ACCESSIONS } from './../modules/helper/uc_to_cluster_acessions'
+include { ADD_TAXONOMY_TAXONKIT } from './../modules/taxonkit'
 
 
 
@@ -42,6 +43,16 @@ workflow BARBEQUE {
     """
         )
     }
+    if (!params.taxdump) {
+        error(
+            """
+    Missing required parameter: --taxdump
+    """
+        )
+    }
+    ch_taxdump = channel.value(
+        file(params.taxdump, checkIfExists: true)
+    )
 
     ch_accession2taxid = channel.value(
         file(params.accession2taxid, checkIfExists: true)
@@ -183,6 +194,14 @@ workflow BARBEQUE {
     ch_versions = ch_versions.mix(CLUSTER_ACCESSIONS_TO_TAXID.out.versions)
 
     CLUSTER_ACCESSIONS_TO_TAXID.out.tsv.view { ">>> [12] CLUSTER ACCESSION TAXID: ${it}" }
+
+    ADD_TAXONOMY_TAXONKIT(
+        CLUSTER_ACCESSIONS_TO_TAXID.out.tsv,
+        ch_taxdump,
+    )
+    ch_versions = ch_versions.mix(ADD_TAXONOMY_TAXONKIT.out.versions)
+
+    ADD_TAXONOMY_TAXONKIT.out.tsv.view { ">>> [13] CLUSTER ACCESSION TAXONOMY: ${it}" }
 
 
     CUSTOM_DUMPSOFTWAREVERSIONS(

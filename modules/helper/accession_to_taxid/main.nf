@@ -10,7 +10,7 @@ process CLUSTER_ACCESSIONS_TO_TAXID {
     path accession2taxid
 
     output:
-    tuple val(meta), path("*.accession_taxid.tsv"), emit: tsv
+    tuple val(meta), path("*.cluster_accession_taxid.tsv"), emit: tsv
     path "versions.yml", emit: versions
 
     script:
@@ -19,48 +19,104 @@ process CLUSTER_ACCESSIONS_TO_TAXID {
     """
     set -euo pipefail
 
-    # Extract unique accessions from cluster file
-    awk -F'\\t' '
+    read_taxmap() {
+        if [[ "${accession2taxid}" == *.gz ]]; then
+            gzip -cd "${accession2taxid}"
+        else
+            cat "${accession2taxid}"
+        fi
+    }
+
+    long_clusters() {
+        gawk -F'\\t' '
+        BEGIN { OFS="\\t" }
         {
+            cluster = \$1
+
             for (i = 2; i <= NF; i++) {
                 acc = \$i
-                sub(/\\.[0-9]+\$/, "", acc)
-                if (acc != "" && acc != "*") print acc
+                gsub(/^ +| +\$/, "", acc)
+
+                if (acc == "" || acc == "*") next
+
+                lookup = acc
+                sub(/\\.[0-9]+\$/, "", lookup)
+
+                print cluster, acc, lookup
             }
         }
-    ' "${cluster_accessions}" \\
-    | sort -u \\
-    > wanted.txt
+        ' "${cluster_accessions}"
+    }
 
-    # Lookup taxids
-    if [[ "${accession2taxid}" == *.gz ]]; then
-        READ_CMD="gzip -cd"
-    else
-        READ_CMD="cat"
-    fi
+    gawk -F'\\t' '
+    BEGIN {
+        OFS="\\t"
+        print "cluster_id", "accession", "taxid"
+    }
 
-    \$READ_CMD "${accession2taxid}" \\
-    | awk -F'\\t' '
-        NR == FNR { want[\$1] = 1; next }
-        FNR == 1 && \$1 == "accession" { next }
-        NF < 2 { next }
-        {
-            acc = \$1
-            sub(/\\.[0-9]+\$/, "", acc)
-            if (!(acc in want)) next
+    # File 1: wanted accessions
+    ARGIND == 1 {
+        want[\$1] = 1
+        next
+    }
 
-            if (NF >= 3 && \$3 ~ /^[0-9]+\$/) print acc "\\t" \$3
-            else if (\$2 ~ /^[0-9]+\$/) print acc "\\t" \$2
+    # File 2: accession2taxid
+    ARGIND == 2 {
+        if (FNR == 1 && \$1 == "accession") next
+        if (NF < 2) next
+
+        # NCBI format:
+        # accession    accession.version    taxid    gi
+        if (NF >= 3 && \$3 ~ /^[0-9]+\$/) {
+            acc_nover = \$1
+            acc_ver   = \$2
+            tax        = \$3
+
+            if (acc_nover in want) taxid[acc_nover] = tax
+            if (acc_ver   in want) taxid[acc_ver]   = tax
+
+            sub(/\\.[0-9]+\$/, "", acc_ver)
+            if (acc_ver in want) taxid[acc_ver] = tax
+
+            next
         }
-    ' wanted.txt - \\
-    | sort -u \\
-    > "${prefix}.accession_taxid.tsv"
+
+        # Simple format:
+        # accession    taxid
+        if (NF >= 2 && \$2 ~ /^[0-9]+\$/) {
+            acc = \$1
+            tax = \$2
+
+            if (acc in want) taxid[acc] = tax
+
+            sub(/\\.[0-9]+\$/, "", acc)
+            if (acc in want) taxid[acc] = tax
+
+            next
+        }
+    }
+
+    # File 3: long cluster table
+    ARGIND == 3 {
+        cluster = \$1
+        acc     = \$2
+        lookup  = \$3
+
+        print cluster, acc, ((lookup in taxid) ? taxid[lookup] : "NA")
+        next
+    }
+    ' \\
+    <(long_clusters | cut -f3 | sort -u) \\
+    <(read_taxmap) \\
+    <(long_clusters) \\
+    > "${prefix}.cluster_accession_taxid.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        awk: \$(awk --version 2>&1 | head -1 || true)
+        gawk: \$(gawk --version 2>&1 | head -1 || true)
         gzip: \$(gzip --version 2>&1 | head -1 || true)
         sort: \$(sort --version 2>&1 | head -1 || true)
+        cut: \$(cut --version 2>&1 | head -1 || true)
     END_VERSIONS
     """
 }
