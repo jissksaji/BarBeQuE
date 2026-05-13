@@ -19,6 +19,9 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
+include { PARSE_UC } from './../modules/helper/parse_uc'
+include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
+
 
 
 workflow BARBEQUE {
@@ -77,6 +80,16 @@ workflow BARBEQUE {
 
     ch_dbs.view { ">>> [1] DB: ${it}" }
 
+    //channel for acession_to_taxonomy_flatfile
+    ch_accession_taxonomy = channel.from([])
+
+    if (params.accession_taxonomy) {
+        ch_accession_taxonomy = channel.value(
+            file(params.accession_taxonomy, checkIfExists: true)
+        )
+
+        ch_accession_taxonomy.view { ">>> [1B] ACCESSION TAXONOMY: ${it}" }
+    }
     // Check if the samplesheet is valid
     INPUT_CHECK(samplesheet)
 
@@ -150,6 +163,14 @@ workflow BARBEQUE {
     //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
     VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
 
+    PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)
+    ch_versions = ch_versions.mix(PARSE_UC.out.versions)
+
+    JOIN_ACCESSION_TAXONOMY(
+        PARSE_UC.out.tsv,
+        ch_accession_taxonomy,
+    )
+    ch_versions = ch_versions.mix(JOIN_ACCESSION_TAXONOMY.out.versions)
 
     CUSTOM_DUMPSOFTWAREVERSIONS(
         ch_versions.unique().collectFile(name: 'collated_versions.yml')
