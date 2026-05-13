@@ -21,6 +21,8 @@ include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 include { PARSE_UC } from './../modules/helper/parse_uc'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
+//include { TAXONKIT_LCA } from './../modules/taxonkit/lca'
+include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 
 
 
@@ -36,6 +38,10 @@ workflow BARBEQUE {
 
     samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists: true)) : channel.value([])
 
+    def taxdump_path = params.taxdump ?: params.references.taxdump
+    ch_taxdump = channel.value(
+        file(taxdump_path, checkIfExists: true)
+    )
     // The pre-installed taxdump folder
 
     // ch_taxdump = file(params.references.taxdump)
@@ -171,6 +177,21 @@ workflow BARBEQUE {
         ch_accession_taxonomy,
     )
     ch_versions = ch_versions.mix(JOIN_ACCESSION_TAXONOMY.out.versions)
+
+    CLUSTER_CONSENSUS(
+        JOIN_ACCESSION_TAXONOMY.out.tsv,
+        ch_taxdump,
+    )
+    ch_versions = ch_versions.mix(CLUSTER_CONSENSUS.out.versions)
+
+    CLUSTER_CONSENSUS.out.tsv.view { ">>> [13] CLUSTER CONSENSUS: ${it}" }
+
+    //    TAXONKIT_LCA(
+    //        JOIN_ACCESSION_TAXONOMY.out.tsv,
+    //        ch_taxdump,
+    //    )
+    //
+    //ch_versions = ch_versions.mix(TAXONKIT_LCA.out.versions)
 
     CUSTOM_DUMPSOFTWAREVERSIONS(
         ch_versions.unique().collectFile(name: 'collated_versions.yml')

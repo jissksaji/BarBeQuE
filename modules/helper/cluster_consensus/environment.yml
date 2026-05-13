@@ -1,7 +1,9 @@
-name: helper_cluster_consensus
+name: cluster_consensus
 channels:
-  - conda-forge
   - bioconda
-  
+  - conda-forge
 dependencies:
-  - conda-forge::taxidtools=3.1.0
+  - python=3.10
+  - pip
+  - pip:
+      - taxidTools
