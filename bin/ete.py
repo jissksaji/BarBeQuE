@@ -32,20 +32,23 @@ def main(taxname, refs, report, output):
     r = open(report, "r")
     lines = r.readlines()
     bucket = {}
-    lines.pop()  # remove the header
 
     for line in lines:
+        line = line.strip()
+        if not line:
+            continue
         elements = line.split("\t")
-        sci = elements[1]
-        tax = elements[2]
-        bucket[tax] = sci
+        if len(elements) >= 5:  
+            sci = elements[-4]
+            tax = elements[-3]
+            bucket[tax] = sci
 
     r.close()
 
     # the list taxids included in the BlastDB
     with open(refs, "r") as taxids:
         blast_tax = taxids.readlines()
-        blast_tax = [tax.rstrip('\n') for tax in blast_tax]
+        blast_tax = [tax.rstrip("\n") for tax in blast_tax]
 
     ok = "#7ee076"
     fail = "#dfc2b1"
@@ -59,12 +62,12 @@ def main(taxname, refs, report, output):
         if n.is_leaf:
             # Make sure we only look at terminal nodes
             if n.rank == "species":
-                tid = n.name
+                tid = str(n.name)
                 n.name = n.sci_name
 
                 # NCBI taxonomy is full of non-species level terminal leafs
                 # we skip all leafs not matching the 'Genus species' pattern
-                if re.match(r'^[A-Z][a-z]*\s[a-z]*$', n.sci_name):
+                if re.match(r"^[A-Z][a-z]*\s[a-z]*$", n.sci_name):
                     # This taxon is in the blast db and was found
                     if tid in bucket:
                         data[n.sci_name] = f"OK\t{tid}\t{ok}"
@@ -92,5 +95,5 @@ def main(taxname, refs, report, output):
     f.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(args.taxon, args.reference, args.report, args.output)

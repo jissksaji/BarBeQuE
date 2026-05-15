@@ -14,7 +14,7 @@ include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
 //include { HELPER_CLUSTER_CONSENSUS }    from './../modules/helper/cluster_consensus'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file'
 //include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
-//include { HELPER_TAXONOMIC_COVERAGE }   from './../modules/helper/taxonomic_coverage'
+include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
 //include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
@@ -192,6 +192,14 @@ workflow BARBEQUE {
     //    )
     //
     //ch_versions = ch_versions.mix(TAXONKIT_LCA.out.versions)
+
+    if (params.taxon) {
+        TAXONOMIC_COVERAGE(
+            CLUSTER_CONSENSUS.out.tsv.combine(ch_accession_taxonomy),
+            params.taxon
+        )
+        ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
+    }
 
     CUSTOM_DUMPSOFTWAREVERSIONS(
         ch_versions.unique().collectFile(name: 'collated_versions.yml')

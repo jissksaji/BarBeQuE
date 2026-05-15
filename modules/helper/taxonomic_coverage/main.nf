@@ -1,4 +1,4 @@
-process HELPER_TAXONOMIC_COVERAGE {
+process TAXONOMIC_COVERAGE {
 
     maxForks 1
 
@@ -6,28 +6,28 @@ process HELPER_TAXONOMIC_COVERAGE {
     label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/cladeomatic%3A0.1.1--pyhdfd78af_0' :
-        'quay.io/biocontainers/cladeomatic%3A0.1.1--pyhdfd78af_0' }"
+    container "${workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
+        ? 'https://depot.galaxyproject.org/singularity/cladeomatic%3A0.1.1--pyhdfd78af_0'
+        : 'quay.io/biocontainers/cladeomatic%3A0.1.1--pyhdfd78af_0'}"
 
     input:
     tuple val(meta), path(clusters), path(db)
-    val(taxonomy)
+    val taxonomy
 
     output:
-    tuple val(meta), path('*.tsv') , emit: tsv
-    tuple val(meta), path('*.nwk') , emit: nwk
-    path 'versions.yml'            , emit: versions
+    tuple val(meta), path('*.tsv'), emit: tsv
+    tuple val(meta), path('*.nwk'), emit: nwk
+    path 'versions.yml', emit: versions
 
     script:
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
 
     """
-    cut -f3 $db | sort -n -u > ids.txt
+    cut -f2 $db | sort -n -u > ids.txt
 
-    ete.py --taxon $taxonomy \\
+    ete.py --taxon ${taxonomy} \\
     --reference ids.txt \\
-    --report $clusters \\
+    --report ${clusters} \\
     --output ${prefix}.tax_coverage
 
     cat <<-END_VERSIONS > versions.yml

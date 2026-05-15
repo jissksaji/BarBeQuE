@@ -22,10 +22,11 @@ process PARSE_UC {
         \$1 == "S" || \$1 == "H" {
             acc = \$9
 
-            # Defensive cleanup of accession field
+            #  cleanup of accession field
             sub(/;size=[0-9]+;?\$/, "", acc)     # strip vsearch size annotation
             sub(/\\.[0-9]+\$/, "", acc)          # strip version (.1, .2, etc.)
 
+            #skip empty or *
             if (acc != "*" && acc != "") {
                 print \$2, acc
             }
