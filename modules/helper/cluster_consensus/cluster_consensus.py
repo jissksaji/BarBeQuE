@@ -52,7 +52,7 @@ def main(input_file, taxdump, output):
     for cluster_id, taxids in clusters_taxid.items():
         # Get unique taxids and their names for disambiguation
         unique_taxids = list(dict.fromkeys(taxids))
-        disambiguation = ";".join([tax.getName(t) for t in unique_taxids])
+        disambiguation = ";".join([name for name in [tax.getName(t) for t in unique_taxids] if name is not None])
         cons = tax.lca(taxids, ignore_missing=True)
         clusters_cons[cluster_id] = [
             cons.name,
