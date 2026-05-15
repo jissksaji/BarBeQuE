@@ -19,16 +19,16 @@ def load_taxonomy(taxdump):
     return taxidTools.read_taxdump(
         os.path.join(taxdump, "nodes.dmp"),
         os.path.join(taxdump, "rankedlineage.dmp"),
-        os.path.join(taxdump, "merged.dmp")
+        os.path.join(taxdump, "merged.dmp"),
     )
 
 
 def parse_crabs(table):
     """parsing crabs in something more efficient than pandas"""
     crabs = {}
-    with open(table, 'r') as fi:
+    with open(table, "r") as fi:
         for line in fi.readlines():
-            elements = line.split('\t')
+            elements = line.split("\t")
             crabs[elements[0]] = elements[1:]
     return crabs
 
@@ -41,20 +41,29 @@ def main(clusters, table, taxdump, output):
 
     # Parse clusters
     clusters_seqid, clusters_taxid = {}, {}
-    with open(clusters, 'r') as fi:
+    with open(clusters, "r") as fi:
         for line in fi.readlines():
-            elements = line.split('\t')
-            if elements[0] == 'C':
+            elements = line.split("\t")
+            if elements[0] == "C":
                 continue
             clusters_seqid[elements[8]] = elements[1]  # SeqID -> ClusterID
             clusters_taxid.setdefault(elements[1], [])
-            clusters_taxid[elements[1]].append(crabs[elements[8]][1])  # ClusterID -> taxid list
-
+            clusters_taxid[elements[1]].append(
+                crabs[elements[8]][1]
+            )  # ClusterID -> taxid list
     # Get consensus, rank, and disambiguation
     clusters_cons = {}
     for k, v in clusters_taxid.items():
-        # Only get unique taxa for the disambiguation; limit to 20, else CSV parsing explodes
-        disambiguation = ";".join([tax.getName(t) for t in list(dict.fromkeys(v))])
+        unique_taxids = list(dict.fromkeys(v))
+        disambiguation = ";".join(
+            [
+                name
+                for name in [
+                    tax.getName(t) for t in unique_taxids
+                ]  # TODO : skipped some taxids#
+                if name is not None
+            ]
+        )
         cons = tax.lca(v, ignore_missing=True)
         clusters_cons[k] = [
             cons.name,
@@ -62,20 +71,19 @@ def main(clusters, table, taxdump, output):
             cons.rank,
             disambiguation,
         ]
-
     # Dump
-    with open(output, 'w') as fo:
+    with open(output, "w") as fo:
         for k, v in crabs.items():
-            line = "\t".join([k, '\t'.join(v[:-1]), '\t'.join(clusters_cons[clusters_seqid[k]]), v[-1]])
-            fo.write(
-                line
+            line = "\t".join(
+                [
+                    k,
+                    "\t".join(v[:-1]),
+                    "\t".join(clusters_cons[clusters_seqid[k]]),
+                    v[-1],
+                ]
             )
+            fo.write(line)
 
 
 if __name__ == "__main__":
-    main(
-        args.clusters,
-        args.table,
-        args.taxdump,
-        args.output
-    )
+    main(args.clusters, args.table, args.taxdump, args.output)
