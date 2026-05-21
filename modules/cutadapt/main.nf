@@ -17,10 +17,11 @@ process CUTADAPT_INSILICOPCR {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
+    def rev_r = meta.rev.reverse()
 
     """
 cutadapt ${args} \
-    -g "${meta.fwd}...${meta.rev}" \
+    -g "${meta.fwd}...${rev_r}" \
     --overlap ${params.cutadapt_overlap} \
     -e ${params.cutadapt_error_rate} \
     --cores ${task.cpus} \
@@ -28,7 +29,7 @@ cutadapt ${args} \
     --discard-untrimmed \
     --minimum-length ${meta.min} \
     --maximum-length ${meta.max} \
-    -o ${prefix}_insilico.fasta \
+    -o "${prefix}_insilico.fasta" \
     --no-indels \
     --revcomp \
     ${db}

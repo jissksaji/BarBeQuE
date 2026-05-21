@@ -75,16 +75,14 @@ workflow BARBEQUE {
                     System.exit(1)
                 }
                 these_dbs << [
-                    [
-                        "id": db
-                    ],
+                    ["id": db],
                     file(params.references.databases[db].db, checkIfExists: true),
                 ]
             }
     }
     ch_dbs = channel.fromList(these_dbs)
 
-    ch_dbs.view { ">>> [1] DB: ${it}" }
+    //ch_dbs.view { ">>> [1] DB: ${it}" }
 
     //channel for acession_to_taxonomy_flatfile
     ch_accession_taxonomy = channel.from([])
@@ -93,13 +91,11 @@ workflow BARBEQUE {
         ch_accession_taxonomy = channel.value(
             file(params.accession_taxonomy, checkIfExists: true)
         )
-
-        ch_accession_taxonomy.view { ">>> [1B] ACCESSION TAXONOMY: ${it}" }
     }
     // Check if the samplesheet is valid
     INPUT_CHECK(samplesheet)
 
-    INPUT_CHECK.out.primers.view { ">>> [2] PRIMER: ${it}" }
+    //INPUT_CHECK.out.primers.view { ">>> [2] PRIMER: ${it}" }
 
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
@@ -109,13 +105,11 @@ workflow BARBEQUE {
         CUSTOM_DB_FILTER(ch_dbs)
         ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
         ch_dbs = CUSTOM_DB_FILTER.out.fasta
-
-        ch_dbs.view { ">>> [3] FILTERED DB: ${it}" }
     }
 
     COMPUTE_BUFFER(ch_dbs)
 
-    COMPUTE_BUFFER.out.buffersize.view { ">>> [4] BUFFER: ${it}" }
+    //COMPUTE_BUFFER.out.buffersize.view { ">>> [4] BUFFER: ${it}" }
 
     /*
      Combine each primer set with all requested databases
@@ -138,14 +132,14 @@ workflow BARBEQUE {
         }
         .set { ch_primers_with_db }
 
-    ch_primers_with_db.view { ">>> [5] PRIMER+DB: ${it}" }
+    //ch_primers_with_db.view { ">>> [5] PRIMER+DB: ${it}" }
 
     CUTADAPT_INSILICOPCR(
-        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize).view { ">>> [6] INTO CUTADAPT: ${it}" }
+        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize)
     )
     ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
 
-    CUTADAPT_INSILICOPCR.out.fasta.view { ">>> [7] OUT CUTADAPT: ${it}" }
+    //CUTADAPT_INSILICOPCR.out.fasta.view { ">>> [7] OUT CUTADAPT: ${it}" }
 
     CUTADAPT_INSILICOPCR.out.fasta
         .branch { m, f ->
@@ -154,7 +148,7 @@ workflow BARBEQUE {
         }
         .set { ch_insilico_by_status }
 
-    ch_insilico_by_status.valid.view { ">>> [8] VALID: ${it}" }
+    //ch_insilico_by_status.valid.view { ">>> [8] VALID: ${it}" }
 
     ch_insilico_by_status.invalid.subscribe { m, t ->
         log.warn("${m.primer} did not produce any pcr products, stopping primer set")
@@ -162,12 +156,12 @@ workflow BARBEQUE {
     VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
     ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
 
-    VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
+    //VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
 
     VSEARCH_CLUSTER_FAST(VSEARCH_DEREPLICATION.out.fasta)
 
     //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
-    VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
+    //VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
 
     PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)
     ch_versions = ch_versions.mix(PARSE_UC.out.versions)
@@ -184,7 +178,7 @@ workflow BARBEQUE {
     )
     ch_versions = ch_versions.mix(CLUSTER_CONSENSUS.out.versions)
 
-    CLUSTER_CONSENSUS.out.tsv.view { ">>> [13] CLUSTER CONSENSUS: ${it}" }
+    // CLUSTER_CONSENSUS.out.tsv.view { ">>> [13] CLUSTER CONSENSUS: ${it}" }
 
     //    TAXONKIT_LCA(
     //        JOIN_ACCESSION_TAXONOMY.out.tsv,
@@ -196,7 +190,7 @@ workflow BARBEQUE {
     if (params.taxon) {
         TAXONOMIC_COVERAGE(
             CLUSTER_CONSENSUS.out.tsv.combine(ch_accession_taxonomy),
-            params.taxon
+            params.taxon,
         )
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
     }
@@ -217,6 +211,7 @@ workflow BARBEQUE {
 
     emit:
     qc = MULTIQC.out.html
+    consensus = CLUSTER_CONSENSUS.out.tsv
 }
 
 //

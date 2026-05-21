@@ -17,33 +17,36 @@ git@github.com:bio-raum/barbeque.git
 // Pipeline version
 params.version = workflow.manifest.version
 
-include { BARBEQUE }            from './workflows/barbeque'
+include { BARBEQUE } from './workflows/barbeque'
 //include { BUILD_REFERENCES }    from './workflows/build_references'
 include { PIPELINE_COMPLETION } from './subworkflows/pipeline_completion'
-include { paramsSummaryLog }    from 'plugin/nf-schema'
+include { INTERACTIVE_RESULTS } from './workflows/interactive_results'
+include { paramsSummaryLog } from 'plugin/nf-schema'
 
 workflow {
 
-    multiqc_report = channel.from([])
-    if (!workflow.containerEngine) {
-        log.info "\033[1;31mRunning with Conda is not recommended in production!\033[0m\n\033[0;31mConda environments are not guaranteed to be reproducible - for a discussion, see https://pubmed.ncbi.nlm.nih.gov/29953862/.\033[0m"
-    }
+  multiqc_report = channel.from([])
+  if (!workflow.containerEngine) {
+    log.info("\033[1;31mRunning with Conda is not recommended in production!\033[0m\n\033[0;31mConda environments are not guaranteed to be reproducible - for a discussion, see https://pubmed.ncbi.nlm.nih.gov/29953862/.\033[0m")
+  }
 
-    WorkflowMain.initialise(workflow, params, log)
-    WorkflowPipeline.initialise(params, log)
+  WorkflowMain.initialise(workflow, params, log)
+  WorkflowPipeline.initialise(params, log)
 
-    // Print summary of supplied parameters
-    log.info paramsSummaryLog(workflow)
+  // Print summary of supplied parameters
+  log.info(paramsSummaryLog(workflow))
 
-    //if (params.build_references) {
-    //    BUILD_REFERENCES()
-    //} else {
-    //    BARBEQUE()
-      //multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
-    //}
-    
-    //added from block before as we are not dealing withreferences
-    BARBEQUE()
-    PIPELINE_COMPLETION()
+  //if (params.build_references) {
+  //    BUILD_REFERENCES()
+  //} else {
+  //    BARBEQUE()
+  //multiqc_report = multiqc_report.mix(BARBEQUE.out.qc).toList()
+  //}
 
+  //added from block before as we are not dealing withreferences
+  BARBEQUE()
+  if (params.interactive) {
+    BARBEQUE.out.consensus.collect() | map { file("${params.outdir}/consensus") } | INTERACTIVE_RESULTS
+  }
+  PIPELINE_COMPLETION()
 }

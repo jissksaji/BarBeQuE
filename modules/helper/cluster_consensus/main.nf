@@ -3,6 +3,8 @@ process CLUSTER_CONSENSUS {
     tag "${meta.primer}|${meta.db}"
     label 'process_medium'
 
+    publishDir "${params.outdir}/consensus", mode: 'copy'
+
     conda "${moduleDir}/environment.yml"
 
     input:
