@@ -1,0 +1,7 @@
+name: build_db_taxids
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - gawk

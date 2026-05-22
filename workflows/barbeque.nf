@@ -23,6 +23,8 @@ include { PARSE_UC } from './../modules/helper/parse_uc'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
 //include { TAXONKIT_LCA } from './../modules/taxonkit/lca'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
+include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
+
 
 
 
@@ -84,7 +86,7 @@ workflow BARBEQUE {
 
     //ch_dbs.view { ">>> [1] DB: ${it}" }
 
-    //channel for acession_to_taxonomy_flatfile
+    //channel for acession_to_taxonomy(basically genbank2taxid) TODO: fix params and naming
     ch_accession_taxonomy = channel.from([])
 
     if (params.accession_taxonomy) {
@@ -188,10 +190,10 @@ workflow BARBEQUE {
     //ch_versions = ch_versions.mix(TAXONKIT_LCA.out.versions)
 
     if (params.taxon) {
-        TAXONOMIC_COVERAGE(
-            CLUSTER_CONSENSUS.out.tsv.combine(ch_accession_taxonomy),
-            params.taxon,
-        )
+        BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
+        ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
+
+        TAXONOMIC_COVERAGE(CLUSTER_CONSENSUS.out.tsv.combine(ch_accession_taxonomy), params.taxon, BUILD_DB_TAXIDS.out.taxids.map { meta, taxids -> taxids })
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
     }
 

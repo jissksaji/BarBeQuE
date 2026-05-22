@@ -4,16 +4,16 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+import re
  
 st.set_page_config(page_title="Primer Cluster Taxonomy Dashboard", layout="wide")
  
-# Usage: python -m streamlit run app.py -- /path/to/consensus_dir
+# Usage: python -m streamlit run app.py -- /path/to/results_dir
 if len(sys.argv) < 2:
-    st.error("Usage: streamlit run app.py -- <path_to_consensus_dir>")
+    st.error("Usage: streamlit run app.py -- <path_to_results_dir>")
     st.stop()
  
 DATA_DIR = Path(sys.argv[1])
- 
 if not DATA_DIR.exists():
     st.error(f"Directory not found: {DATA_DIR}")
     st.stop()
@@ -41,10 +41,13 @@ DTYPES = {
 
 # Helper functions
 
-def load_tsv_files(data_dir):
+def load_tsv_files(outdir):
     dfs = []
-
-    for file in sorted(Path(data_dir).glob("*.tsv")):
+    consensus_dir = Path(outdir) / "consensus"
+    if not consensus_dir.exists():
+        st.error(f"Directory not found: {consensus_dir}")
+        st.stop()
+    for file in sorted(Path(consensus_dir).glob("*.tsv")):
         tmp = pd.read_csv(
             file,
             sep="\t",
@@ -52,7 +55,8 @@ def load_tsv_files(data_dir):
             names=COLUMNS,
             dtype=DTYPES
         )
-        tmp["primer"] = file.stem
+        tmp["primer"] = Path(file.stem).stem
+
         dfs.append(tmp)
 
     if not dfs:
@@ -112,11 +116,6 @@ primer_choice = st.sidebar.selectbox("Filter by primer", ["All"] + all_primers)
 
 if primer_choice != "All":
     df = df[df["primer"] == primer_choice]
-
-
-# Raw data
-with st.expander("Raw merged data"):
-    st.dataframe(df, width="stretch", height=300)
 
 
 # Basic statistics
@@ -181,19 +180,6 @@ seqs_per_cluster = (
 
 st.dataframe(seqs_per_cluster, width="stretch", height=300)
 
-fig_cluster = px.histogram(
-    seqs_per_cluster,
-    x="sequence_count",
-    color="primer",
-    nbins=40,
-    title="Distribution of sequence counts per cluster"
-)
-
-st.plotly_chart(
-    compact_plot(fig_cluster, height=350),
-    width="stretch"
-)
-
 
 # Rank and primer summaries
 left, right = st.columns(2)
@@ -202,26 +188,14 @@ with left:
     st.subheader("Assigned rank distribution")
 
     rank_counts = (
-        df["assigned_rank"]
-        .dropna()
+        seqs_per_cluster["assigned_rank"]
+        .fillna("unresolved")   # ← cluster level, consistent
         .value_counts()
         .reset_index()
     )
     rank_counts.columns = ["assigned_rank", "count"]
 
     st.dataframe(rank_counts, width="stretch", height=220)
-
-    fig_rank = px.bar(
-        rank_counts,
-        x="assigned_rank",
-        y="count",
-        title="Most common solved taxonomic ranks"
-    )
-
-    st.plotly_chart(
-        compact_plot(fig_rank, height=330),
-        width="stretch"
-    )
 
 with right:
     st.subheader("Primer-level summary")
@@ -245,18 +219,6 @@ with right:
     )
 
     st.dataframe(primer_summary, width="stretch", height=220)
-
-    fig_primer = px.bar(
-        primer_summary,
-        x="primer",
-        y="total_clusters",
-        title="Total clusters per primer"
-    )
-
-    st.plotly_chart(
-        compact_plot(fig_primer, height=330),
-        width="stretch"
-    )
 
 
 # Most abundant assigned taxa
@@ -379,3 +341,143 @@ st.plotly_chart(
     compact_plot(fig_cluster_taxids, height=400),
     width="stretch"
 )
+
+
+# Primer resolution efficiency
+
+st.subheader("Primer resolution efficiency (LCA per cluster)")
+
+resolution = (
+    seqs_per_cluster
+    .groupby(["primer", "assigned_rank"], dropna=False)
+    .agg(cluster_count=("cluster_id", "count"))
+    .reset_index()
+)
+
+# total clusters per primer
+primer_totals = (
+    seqs_per_cluster
+    .groupby("primer")
+    .agg(total_clusters=("cluster_id", "count"))
+    .reset_index()
+)
+
+resolution = resolution.merge(primer_totals, on="primer")
+resolution["pct"] = (
+    resolution["cluster_count"] / resolution["total_clusters"] * 100
+).round(1)
+
+resolution["assigned_rank"] = resolution["assigned_rank"].fillna("unresolved")
+
+
+st.markdown("**Total clusters per primer**")
+cols = st.columns(len(primer_totals))
+for col, (_, row) in zip(cols, primer_totals.iterrows()):
+    col.metric(row["primer"], f'{int(row["total_clusters"]):,} clusters')
+fig_res = px.bar(
+    resolution,
+    x="primer",
+    y="pct",
+    color="assigned_rank",
+    text="cluster_count",
+    title="% of clusters resolved per LCA rank per primer",
+    labels={"pct": "% of clusters", "cluster_count": "# clusters"},
+    barmode="stack"
+)
+
+fig_res.update_traces(textposition="inside")
+
+st.plotly_chart(compact_plot(fig_res, height=450), width="stretch")
+
+
+
+#taxonomic coverage from module read directly
+def load_tax_coverage(data_dir):
+    dfs = []
+    tax_dir = Path(data_dir) / "tax_coverage"
+
+    for file in sorted(tax_dir.glob("*.tax_coverage.tsv")):
+        tmp = pd.read_csv(
+            file,
+            sep="\t",
+            header=None,
+            names=["Taxon", "Status", "Taxid", "Color"],
+            skiprows=1
+        )
+        stem  = file.stem.replace(".tax_coverage", "")
+        parts = stem.split("--")
+        tmp["primer"] = parts[0].rstrip("_")
+        tmp["taxon"]  = parts[1] if len(parts) > 1 else "Unknown"
+        dfs.append(tmp)
+
+    if not dfs:
+        return pd.DataFrame(columns=["Taxon", "Status", "Taxid", "Color", "primer"])
+
+    return pd.concat(dfs, ignore_index=True)
+
+
+
+st.divider()
+
+tax_df = load_tax_coverage(DATA_DIR)
+
+if tax_df.empty:
+    st.info("No taxonomic coverage data found. Run pipeline with --taxon to enable.")
+
+else:
+    db_species = tax_df[tax_df["Status"] != "NO_DATA"]
+    taxon_name = tax_df["taxon"].iloc[0]
+    st.header(f"Taxonomic Coverage — {taxon_name}")
+
+
+    # coverage per primer
+    coverage_rows = []
+    for primer, group in db_species.groupby("primer"):
+        total     = len(group)
+        recovered = len(group[group["Status"] == "OK"])
+        coverage  = round(recovered / total * 100, 1) if total > 0 else 0.0
+        coverage_rows.append({
+            "primer":    primer,
+                "total":     total,
+                "recovered": recovered,
+                "coverage":  coverage
+            })
+        coverage_df = pd.DataFrame(coverage_rows)
+
+    # metrics row
+    cols = st.columns(len(coverage_df))
+    for col, (_, row) in zip(cols, coverage_df.iterrows()):
+        col.metric(
+            row["primer"],
+            f'{row["coverage"]}%',
+            delta=f'{int(row["recovered"])}/{int(row["total"])} species',
+            delta_color="off"
+        )
+
+    # coverage bar chart
+    fig_cov = px.bar(
+        coverage_df,
+        x="primer",
+        y="coverage",
+        color="primer",
+        title="Taxonomic Coverage per Primer (%)",
+        labels={"coverage": "Coverage (%)"}
+    )
+    st.plotly_chart(compact_plot(fig_cov), use_container_width=True)
+
+    # status breakdown
+    status_counts = tax_df.groupby(["primer", "Status"]).size().reset_index(name="count")
+    fig_status = px.bar(
+        status_counts,
+        x="primer",
+        y="count",
+        color="Status",
+        barmode="stack",
+        color_discrete_map={
+            "OK": "#7ee076",
+            "FAIL": "#ff4500",
+            "NO_DATA": "#eeeeee"
+        },
+        title="Species Status Breakdown per Primer"
+    )
+    st.plotly_chart(compact_plot(fig_status), use_container_width=True)

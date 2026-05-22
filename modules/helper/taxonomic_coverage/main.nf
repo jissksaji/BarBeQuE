@@ -13,6 +13,7 @@ process TAXONOMIC_COVERAGE {
     input:
     tuple val(meta), path(clusters), path(db)
     val taxonomy
+    path db_taxids
 
     output:
     tuple val(meta), path('*.tsv'), emit: tsv
@@ -20,13 +21,11 @@ process TAXONOMIC_COVERAGE {
     path 'versions.yml', emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
-
+    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}_--${taxonomy}--"
     """
-    cut -f2 $db | sort -n -u > ids.txt
 
     ete.py --taxon ${taxonomy} \\
-    --reference ids.txt \\
+    --reference ${db_taxids} \\
     --report ${clusters} \\
     --output ${prefix}.tax_coverage
 

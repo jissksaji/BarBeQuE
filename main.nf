@@ -46,7 +46,7 @@ workflow {
   //added from block before as we are not dealing withreferences
   BARBEQUE()
   if (params.interactive) {
-    BARBEQUE.out.consensus.collect() | map { file("${params.outdir}/consensus") } | INTERACTIVE_RESULTS
+    BARBEQUE.out.consensus.collect() | map { "${params.outdir}" } | INTERACTIVE_RESULTS
   }
   PIPELINE_COMPLETION()
 }

@@ -8,7 +8,7 @@ process STREAMLIT {
     conda "${moduleDir}/environment.yml"
 
     input:
-    path consensus_dir
+    val results_dir
 
     output:
     path "versions.yml", emit: versions
@@ -22,7 +22,7 @@ pkill -f "streamlit run.*app.py" || true
 python -m streamlit run ${moduleDir}/../../bin/app.py \\
     --server.port 8501 \\
     --server.headless true \\
-    -- ${consensus_dir} > ${params.outdir}/streamlit.log 2>&1 &
+    -- "${results_dir}" > "${params.outdir}/streamlit.log" 2>&1 &
 
 sleep 3
 
