@@ -1,6 +1,7 @@
 process COMPUTE_BUFFER {
 
     tag "${meta.id}"
+    debug true
 
     label 'medium_parallel'
 
@@ -8,8 +9,9 @@ process COMPUTE_BUFFER {
 
     input:
     tuple val(meta), path(db)
+
     output:
-    env buffersize      ,emit: buffersize
+    env ('buffersize'), emit: buffersize
     path "versions.yml", emit: versions
 
     script:
@@ -23,4 +25,4 @@ process COMPUTE_BUFFER {
         seqkit: \$(seqkit version | sed 's/seqkit //')
     END_VERSIONS
     """
-    }
+}

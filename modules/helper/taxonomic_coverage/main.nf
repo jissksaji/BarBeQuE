@@ -1,19 +1,17 @@
 process TAXONOMIC_COVERAGE {
 
     maxForks 1
+    debug true
+    cache false
 
     tag "${meta.primer}|${meta.db}"
     label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
-    container "${workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-        ? 'https://depot.galaxyproject.org/singularity/cladeomatic%3A0.1.1--pyhdfd78af_0'
-        : 'quay.io/biocontainers/cladeomatic%3A0.1.1--pyhdfd78af_0'}"
 
     input:
-    tuple val(meta), path(clusters), path(db)
+    tuple val(meta), path(clusters), path(db_taxids)
     val taxonomy
-    path db_taxids
 
     output:
     tuple val(meta), path('*.tsv'), emit: tsv
@@ -24,7 +22,7 @@ process TAXONOMIC_COVERAGE {
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}_--${taxonomy}--"
     """
 
-    ete.py --taxon ${taxonomy} \\
+    ete.py --taxon "${taxonomy}" \\
     --reference ${db_taxids} \\
     --report ${clusters} \\
     --output ${prefix}.tax_coverage

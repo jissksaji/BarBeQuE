@@ -19,7 +19,7 @@ workflow INPUT_CHECK {
 // Function to get meta hash
 def fastq_channel(LinkedHashMap row) {
     def meta = [:]
-    meta.primer = row.primer.replaceAll(/\s+/, '_')
+    meta.primer = row.primer.replaceAll(/[\s\/\\:*?"<>|]/, '_')
 
     if (row.fwd) {
         meta.fwd = row.fwd
@@ -52,3 +52,4 @@ def fastq_channel(LinkedHashMap row) {
 
     return meta
 }
+

@@ -193,7 +193,18 @@ workflow BARBEQUE {
         BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
         ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
 
-        TAXONOMIC_COVERAGE(CLUSTER_CONSENSUS.out.tsv.combine(ch_accession_taxonomy), params.taxon, BUILD_DB_TAXIDS.out.taxids.map { meta, taxids -> taxids })
+        TAXONOMIC_COVERAGE(
+            CLUSTER_CONSENSUS.out.tsv.map { m, tsv -> 
+                tuple(m.db, m, tsv)
+            }.combine(
+                BUILD_DB_TAXIDS.out.taxids.map { m, taxids -> 
+                    tuple(m.id, taxids) 
+                }, by: 0
+            ).map { db_id, meta, tsv, taxids -> 
+                tuple(meta, tsv, taxids) 
+            },
+            params.taxon
+        )
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
     }
 

@@ -4,6 +4,7 @@ process BUILD_DB_TAXIDS {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
+    publishDir "${params.outdir}/build_db_taxids", mode: 'copy'
 
     input:
     tuple val(meta), path(fasta)
@@ -19,13 +20,14 @@ process BUILD_DB_TAXIDS {
     """
     set -euo pipefail
 
-    awk -F'\\t' '
+    # Pre-extract accessions to drastically speed up processing and avoid awk memory limits on huge fastas
+    grep "^>" ${fasta} | cut -d' ' -f1 | cut -d'>' -f2 > db_accessions.txt
 
-        # PASS 1: FASTA — extract accession from header, load into lookup table
-        /^>/ {
-            accession = substr(\$1, 2)             # remove leading ">"
-            sub(/\\.[0-9]+\$/, "", accession)      # strip version e.g. MK123456.1 -> MK123456
-            db_accessions[accession] = 1
+    awk -F'\\t' '
+        # PASS 1: DB accessions — load into lookup table
+        NR == FNR {
+            sub(/\\.[0-9]+\$/, "", \$1)      # strip version e.g. MK123456.1 -> MK123456
+            db_accessions[\$1] = 1
             next
         }
 
@@ -45,10 +47,11 @@ process BUILD_DB_TAXIDS {
                 print unmatched > "${prefix}.missing_accessions.tsv"
             }
         }
-
-    ' ${fasta} ${genbank2taxid} \\
+    ' db_accessions.txt ${genbank2taxid} \\
     | sort -n -u \\
     > "${prefix}.db_taxids.tsv"
+    
+    rm db_accessions.txt
 
     touch "${prefix}.missing_accessions.tsv"
 

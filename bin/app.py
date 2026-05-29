@@ -121,14 +121,27 @@ if primer_choice != "All":
 # Basic statistics
 st.subheader("Basic statistics")
 
-total_rows = len(df)
-total_clusters = df["cluster_id"].nunique()
-total_accessions = df["accession"].nunique()
-total_accession_taxids = df["accession_taxid"].nunique()
-total_assigned_taxids = df["assigned_taxid"].nunique()
+seqs_per_cluster = (
+    df.groupby(["primer", "cluster_id"], dropna=False)
+    .agg(
+        sequence_count=("accession", "count"),
+        unique_accession_taxids=("accession_taxid", "nunique"),
+        assigned_taxid=("assigned_taxid", "first"),
+        assigned_rank=("assigned_rank", "first"),
+        assigned_name=("assigned_name", "first")
+    )
+    .reset_index()
+    .sort_values("sequence_count", ascending=False)
+)
 
-most_abundant_taxid = most_common(df["assigned_taxid"])
-most_common_rank = most_common(df["assigned_rank"])
+total_rows = len(df)
+total_clusters = df.groupby("primer")["cluster_id"].nunique().sum()
+total_accessions = df.groupby("primer")["accession"].nunique().sum()
+total_accession_taxids = df.groupby("primer")["accession_taxid"].nunique().sum()
+total_assigned_taxids = df.groupby("primer")["assigned_taxid"].nunique().sum()
+
+most_abundant_taxid = most_common(seqs_per_cluster["assigned_taxid"])
+most_common_rank = most_common(seqs_per_cluster["assigned_rank"])
 
 matching_rows = df.loc[
     df["assigned_taxid"] == most_abundant_taxid,
@@ -163,22 +176,21 @@ col4.metric(
 
 
 # Cluster summary
-st.subheader("Sequences per cluster")
 
-seqs_per_cluster = (
-    df.groupby(["primer", "cluster_id"], dropna=False)
-    .agg(
-        sequence_count=("accession", "count"),
-        unique_accession_taxids=("accession_taxid", "nunique"),
-        assigned_taxid=("assigned_taxid", "first"),
-        assigned_rank=("assigned_rank", "first"),
-        assigned_name=("assigned_name", "first")
-    )
-    .reset_index()
-    .sort_values("sequence_count", ascending=False)
-)
+#seqs_per_cluster = (
+#    df.groupby(["primer", "cluster_id"], dropna=False)
+#    .agg(
+#        sequence_count=("accession", "count"),
+#        unique_accession_taxids=("accession_taxid", "nunique"),
+#        assigned_taxid=("assigned_taxid", "first"),
+#        assigned_rank=("assigned_rank", "first"),
+#        assigned_name=("assigned_name", "first")
+#    )
+#    .reset_index()
+#    .sort_values("sequence_count", ascending=False)
+#)
 
-st.dataframe(seqs_per_cluster, width="stretch", height=300)
+#st.dataframe(seqs_per_cluster, width="stretch", height=300)
 
 
 # Rank and primer summaries
@@ -246,8 +258,6 @@ taxon_counts["plot_name"] = taxon_counts.apply(
     lambda row: f'{row["assigned_taxid"]} | {shorten(row["clean_name"], 30)}',
     axis=1
 )
-
-st.dataframe(taxon_counts, width="stretch", height=300)
 
 top_taxa = taxon_counts.head(top_n)
 
@@ -371,9 +381,12 @@ resolution["assigned_rank"] = resolution["assigned_rank"].fillna("unresolved")
 
 
 st.markdown("**Total clusters per primer**")
-cols = st.columns(len(primer_totals))
-for col, (_, row) in zip(cols, primer_totals.iterrows()):
-    col.metric(row["primer"], f'{int(row["total_clusters"]):,} clusters')
+num_cols = 4
+for i in range(0, len(primer_totals), num_cols):
+    chunk = primer_totals.iloc[i:i+num_cols]
+    cols = st.columns(num_cols)
+    for col, (_, row) in zip(cols, chunk.iterrows()):
+        col.metric(row["primer"], f'{int(row["total_clusters"]):,} clusters')
 fig_res = px.bar(
     resolution,
     x="primer",
@@ -391,7 +404,6 @@ st.plotly_chart(compact_plot(fig_res, height=450), width="stretch")
 
 
 
-#taxonomic coverage from module read directly
 def load_tax_coverage(data_dir):
     dfs = []
     tax_dir = Path(data_dir) / "tax_coverage"
@@ -401,9 +413,12 @@ def load_tax_coverage(data_dir):
             file,
             sep="\t",
             header=None,
-            names=["Taxon", "Status", "Taxid", "Color"],
+            names=["Taxon", "Status", "Taxid", "Color", "Rank"],
             skiprows=1
         )
+        # Handle older files that don't have the Rank column
+        tmp["Rank"] = tmp["Rank"].fillna("species")
+        
         stem  = file.stem.replace(".tax_coverage", "")
         parts = stem.split("--")
         tmp["primer"] = parts[0].rstrip("_")
@@ -411,7 +426,7 @@ def load_tax_coverage(data_dir):
         dfs.append(tmp)
 
     if not dfs:
-        return pd.DataFrame(columns=["Taxon", "Status", "Taxid", "Color", "primer"])
+        return pd.DataFrame(columns=["Taxon", "Status", "Taxid", "Color", "Rank", "primer", "taxon"])
 
     return pd.concat(dfs, ignore_index=True)
 
@@ -425,59 +440,102 @@ if tax_df.empty:
     st.info("No taxonomic coverage data found. Run pipeline with --taxon to enable.")
 
 else:
+    unique_taxa = tax_df["taxon"].unique()
+    if len(unique_taxa) > 1:
+        selected_taxon = st.selectbox("🌿 Select Taxon to View:", unique_taxa)
+        tax_df = tax_df[tax_df["taxon"] == selected_taxon]
+    else:
+        selected_taxon = unique_taxa[0]
+
     db_species = tax_df[tax_df["Status"] != "NO_DATA"]
-    taxon_name = tax_df["taxon"].iloc[0]
-    st.header(f"Taxonomic Coverage — {taxon_name}")
+    st.header(f"Taxonomic Coverage — {selected_taxon}")
+    st.markdown("""
+    **Coverage metrics explained:**
+    * **Pass**: The number of species/taxa successfully amplified by the primer.
+    * **Fail**: The number of species/taxa that exist in the reference database but were missed.
+    * **No Data**: The number of species/taxa that exist in NCBI taxonomy but have no sequences in your reference database (excluded from coverage calculation).
+    """)
 
 
     # coverage per primer
     coverage_rows = []
-    for primer, group in db_species.groupby("primer"):
-        total     = len(group)
-        recovered = len(group[group["Status"] == "OK"])
-        coverage  = round(recovered / total * 100, 1) if total > 0 else 0.0
+    for (primer, rank), group in tax_df.groupby(["primer", "Rank"]):  
+        pass_count = len(group[group["Status"] == "OK"])
+        fail_count = len(group[group["Status"] == "FAIL"])
+        no_data    = len(group[group["Status"] == "NO_DATA"])
+        total_db   = pass_count + fail_count
+        coverage   = round(pass_count / total_db * 100, 1) if total_db > 0 else 0.0
         coverage_rows.append({
-            "primer":    primer,
-                "total":     total,
-                "recovered": recovered,
-                "coverage":  coverage
-            })
-        coverage_df = pd.DataFrame(coverage_rows)
+            "primer":     primer,
+            "Rank":       rank,
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "no_data":    no_data,
+            "coverage":   coverage
+        })
+    coverage_df = pd.DataFrame(coverage_rows)
 
     # metrics row
-    cols = st.columns(len(coverage_df))
-    for col, (_, row) in zip(cols, coverage_df.iterrows()):
-        col.metric(
-            row["primer"],
-            f'{row["coverage"]}%',
-            delta=f'{int(row["recovered"])}/{int(row["total"])} species',
-            delta_color="off"
-        )
+    primers = coverage_df["primer"].unique()
+    num_cols = 3
+    for i in range(0, len(primers), num_cols):
+        chunk = primers[i:i+num_cols]
+        cols = st.columns(num_cols)
+        for col, primer in zip(cols, chunk):
+            primer_rows = coverage_df[coverage_df["primer"] == primer]
+            col.markdown(f"**{primer}**")
+            for _, row in primer_rows.iterrows():
+                col.metric(
+                    row["Rank"].capitalize(),
+                    f'{row["coverage"]}%',
+                    delta=f'{int(row["pass_count"])} Pass | {int(row["fail_count"])} Fail | {int(row["no_data"])} No Data',
+                    delta_color="off"
+                )
+        st.markdown("---")  # Optional: Adds a visual separator between rows
 
     # coverage bar chart
     fig_cov = px.bar(
         coverage_df,
         x="primer",
         y="coverage",
-        color="primer",
+        color="Rank",
+        barmode="group",
         title="Taxonomic Coverage per Primer (%)",
         labels={"coverage": "Coverage (%)"}
     )
     st.plotly_chart(compact_plot(fig_cov), use_container_width=True)
 
     # status breakdown
-    status_counts = tax_df.groupby(["primer", "Status"]).size().reset_index(name="count")
+    status_counts = tax_df.groupby(["primer", "Rank", "Status"]).size().reset_index(name="count")
     fig_status = px.bar(
         status_counts,
         x="primer",
         y="count",
         color="Status",
+        facet_col="Rank",
         barmode="stack",
         color_discrete_map={
             "OK": "#7ee076",
             "FAIL": "#ff4500",
             "NO_DATA": "#eeeeee"
         },
-        title="Species Status Breakdown per Primer"
+        title="Status Breakdown per Primer (Faceted by Rank)"
     )
+    fig_status.update_yaxes(matches=None)
+    fig_status.update_yaxes(showticklabels=True)
     st.plotly_chart(compact_plot(fig_status), use_container_width=True)
+
+    # Detailed data table
+    st.subheader("Taxonomy Details")
+    st.write("Browse the exact species and genera to see which were amplified, missed, or missing from the reference database.")
+    
+    
+    display_cols = ["primer", "Rank", "Status", "Taxon", "Taxid"]
+    df_to_show = tax_df[display_cols].sort_values(["primer", "Rank", "Status", "Taxon"])
+    
+        
+    st.dataframe(
+        df_to_show,
+        use_container_width=True,
+        hide_index=True
+    )

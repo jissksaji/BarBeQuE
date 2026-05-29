@@ -4,6 +4,7 @@ process JOIN_ACCESSION_TAXONOMY {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
+    publishDir "${params.outdir}/join_accession_taxonomy", mode: 'copy'
 
     input:
     tuple val(meta), path(cluster_accessions)

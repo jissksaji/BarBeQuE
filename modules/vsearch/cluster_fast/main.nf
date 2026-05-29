@@ -1,5 +1,7 @@
 process VSEARCH_CLUSTER_FAST {
     tag "${meta.primer}|${meta.db}"
+    publishDir "${params.outdir}/cluster_fast", mode: 'copy'
+
 
     label 'short_parallel'
 
