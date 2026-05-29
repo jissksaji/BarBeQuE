@@ -8,7 +8,7 @@ process CUTADAPT_INSILICOPCR {
     container "quay.io/biocontainers/cutadapt:5.2--py313h8c92656_1"
 
     input:
-    tuple val(meta), path(db), env(buffersize)
+    tuple val(meta), path(db), env('buffersize')
 
     output:
     tuple val(meta), path('*_insilico.fasta'), emit: fasta
@@ -17,8 +17,7 @@ process CUTADAPT_INSILICOPCR {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
-    def rev_r = meta.rev.reverse()
-
+    def rev_r = meta.rev.toUpperCase().reverse().tr('ACGTRYSWKMBDHVN', 'TGCAYRSWMKVHDBN')
     """
 cutadapt ${args} \
     -g "${meta.fwd}...${rev_r}" \
