@@ -24,6 +24,7 @@ include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_tax
 //include { TAXONKIT_LCA } from './../modules/taxonkit/lca'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
+include { AMPLICON_LENGTH } from './../modules/seqkit/amplicon_lengths'
 
 
 
@@ -157,6 +158,9 @@ workflow BARBEQUE {
     }
     VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
     ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
+
+    AMPLICON_LENGTH(VSEARCH_DEREPLICATION.out.fasta)
+    ch_versions = ch_versions.mix(AMPLICON_LENGTH.out.versions)
 
     //VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
 
