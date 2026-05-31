@@ -54,10 +54,22 @@ def main(taxname, refs, report, output):
 
     r.close()
 
+    # Expand bucket keys downward to ensure species under a genus-level LCA inherit the OK status
+    expanded_bucket = set(bucket.keys())
+    for tax in list(bucket.keys()):
+        try:
+            descendants = ncbi.get_descendant_taxa(tax, collapse_subspecies=False)
+            expanded_bucket.update(map(str, descendants))
+        except ValueError:
+            pass
+
     # the list taxids included in the BlastDB
     with open(refs, "r") as taxids:
-        blast_tax = taxids.readlines()
-        blast_tax = [tax.rstrip("\n") for tax in blast_tax]
+        blast_tax = set([tax.strip() for tax in taxids])
+
+    # Intersect with blast_tax to prevent expanding into taxa that aren't even in the DB,
+    # while keeping the original bucket keys that were explicitly in the report.
+    expanded_bucket = expanded_bucket.intersection(blast_tax).union(bucket.keys())
 
     ok = "#7ee076"
     fail = "#dfc2b1"
@@ -81,7 +93,7 @@ def main(taxname, refs, report, output):
         if n.rank == "family":
             family_tid = str(n.name)
             descendant_tids = [str(desc.name) for desc in n.traverse()]
-            if any(tid in bucket for tid in descendant_tids):
+            if any(tid in expanded_bucket for tid in descendant_tids):
                 family_data[n.sci_name] = f"OK\t{family_tid}\t{ok}\tfamily"
             elif any(tid in blast_tax for tid in descendant_tids):
                 family_data[n.sci_name] = f"FAIL\t{family_tid}\t{fail}\tfamily"
@@ -94,7 +106,7 @@ def main(taxname, refs, report, output):
         if n.rank == "genus":
             genus_tid = str(n.name)
             descendant_tids = [str(desc.name) for desc in n.traverse()]
-            if any(tid in bucket for tid in descendant_tids):
+            if any(tid in expanded_bucket for tid in descendant_tids):
                 genus_data[n.sci_name] = f"OK\t{genus_tid}\t{ok}\tgenus"
             elif any(tid in blast_tax for tid in descendant_tids):
                 genus_data[n.sci_name] = f"FAIL\t{genus_tid}\t{fail}\tgenus"
@@ -111,11 +123,12 @@ def main(taxname, refs, report, output):
             # NCBI taxonomy is full of non-species level terminal leafs
             # we skip all leafs not matching the 'Genus species' pattern
             if re.match(r"^[A-Z][a-z]*\s[a-z]*$", n.sci_name):
+                descendant_tids = [str(desc.name) for desc in n.traverse()]
                 # This taxon is in the blast db and was found
-                if tid in bucket:
+                if any(t in expanded_bucket for t in descendant_tids):
                     data[n.sci_name] = f"OK\t{tid}\t{ok}\tspecies"
                 # This taxon is in the blast db and was not found
-                elif tid in blast_tax:
+                elif any(t in blast_tax for t in descendant_tids):
                     data[n.sci_name] = f"FAIL\t{tid}\t{fail}\tspecies"
                 # this taxon was not in the blast db
                 else:

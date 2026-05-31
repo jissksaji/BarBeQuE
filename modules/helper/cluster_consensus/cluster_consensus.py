@@ -31,7 +31,7 @@ def parse_cluster_taxonomy(input_file):
             elements = line.rstrip('\n').split('\t')
             cluster_id = elements[0]
             accession = elements[1]
-            taxid = elements[2]
+            taxid = elements[3]
 
             clusters_taxid.setdefault(cluster_id, [])
             clusters_taxid[cluster_id].append(taxid)
@@ -53,13 +53,23 @@ def main(input_file, taxdump, output):
         # Get unique taxids and their names for disambiguation
         unique_taxids = list(dict.fromkeys(taxids))
         disambiguation = ";".join([name for name in [tax.getName(t) for t in unique_taxids] if name is not None])
-        cons = tax.lca(taxids, ignore_missing=True)
-        clusters_cons[cluster_id] = [
-            cons.name,
-            str(cons.taxid),
-            cons.rank,
-            disambiguation,
-        ]
+        valid_taxids = [t for t in taxids if tax.getName(t) is not None]
+        
+        if valid_taxids:
+            cons = tax.lca(valid_taxids, ignore_missing=True)
+            clusters_cons[cluster_id] = [
+                cons.name,
+                str(cons.taxid),
+                cons.rank,
+                disambiguation,
+            ]
+        else:
+            clusters_cons[cluster_id] = [
+                "Unclassified",
+                "Unknown",
+                "no rank",
+                disambiguation,
+            ]
 
     # Dump: original row + LCA columns appended
     with open(output, 'w') as fo:
