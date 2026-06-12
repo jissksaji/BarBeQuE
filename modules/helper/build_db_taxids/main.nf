@@ -12,6 +12,7 @@ process BUILD_DB_TAXIDS {
 
     output:
     tuple val(meta), path("*.db_taxids.tsv"), emit: taxids
+    tuple val(meta), path("*.db_taxids_counts.tsv"), emit: taxids_counts
     tuple val(meta), path("*.missing_accessions.tsv"), emit: missing
     path "versions.yml", emit: versions
 
@@ -48,9 +49,12 @@ process BUILD_DB_TAXIDS {
             }
         }
     ' db_accessions.txt ${genbank2taxid} \\
-    | sort -n -u \\
-    > "${prefix}.db_taxids.tsv"
-    
+    | sort -n \\
+    | tee >(sort -u > "${prefix}.db_taxids.tsv") \\
+    | uniq -c \\
+    | awk '{print \$2"\\t"\$1}' \\
+    > "${prefix}.db_taxids_counts.tsv"
+
     rm db_accessions.txt
 
     touch "${prefix}.missing_accessions.tsv"
