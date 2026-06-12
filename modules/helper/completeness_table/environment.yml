@@ -1,0 +1,8 @@
+name: completeness_table
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - bioconda::grapetree=2.1
+  - ete3
