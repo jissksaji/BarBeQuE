@@ -39,6 +39,7 @@ nucl_gb.accession2taxid*
 # Conda environments
 .conda/
 env/
+.conda-env/
 
 # Logs and reports
 nohup.out

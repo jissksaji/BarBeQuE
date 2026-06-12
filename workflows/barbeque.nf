@@ -3,28 +3,21 @@ include { INPUT_CHECK } from './../modules/input_check'
 include { MULTIQC } from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
 include { CUSTOM_DB_FILTER } from './../modules/seqkit/custom_db_filter'
-//include { CRABS_INSILICOPCR }           from './../modules/crabs/insilico_pcr'
-//include { CRABS_DEREPLICATE }           from './../modules/crabs/dereplicate'
-//include { CRABS_FILTER }                from './../modules/crabs/filter'
-//include { CRABS_SUBSET }                from './../modules/crabs/subset'
-//include { CRABS_DIVERSITY_FIGURE }      from './../modules/crabs/diversity_figure'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
-//include { CRABS_AMPLIFICATION_EFFICENCY_FIGURE } from './../modules/crabs/amplification_efficency_figure'
-//include { CRABS_AMPLICON_LENGTH_FIGURE }from './../modules/crabs/amplicon_length_figure'
-//include { HELPER_CLUSTER_CONSENSUS }    from './../modules/helper/cluster_consensus'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file'
-//include { HELPER_CONSENSUS_HISTOGRAM }  from './../modules/helper/consensus_histogram'
 include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
-//include { HELPER_CONSENSUS_DISTRIBUTION } from './../modules/helper/consensus_distribution'
+include { TAXONOMIC_COVERAGE_PLOT } from './../modules/helper/taxonomic_coverage_plot/main'
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 include { PARSE_UC } from './../modules/helper/parse_uc'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
-//include { TAXONKIT_LCA } from './../modules/taxonkit/lca'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
 include { AMPLICON_LENGTH } from './../modules/seqkit/amplicon_lengths'
+include { COMPLETENESS_TABLE } from './../modules/helper/completeness_table/main'
+include { SPECIES_REPRESENTATION } from './../modules/helper/species_representation/main'
+include { DB_DISTRIBUTION } from './../modules/db_distribution/main.nf'
 
 
 
@@ -98,17 +91,15 @@ workflow BARBEQUE {
     // Check if the samplesheet is valid
     INPUT_CHECK(samplesheet)
 
-    //INPUT_CHECK.out.primers.view { ">>> [2] PRIMER: ${it}" }
-
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
 
     //filter custom DB if provided
-    if (params.custom_db) {
-        CUSTOM_DB_FILTER(ch_dbs)
-        ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
-        ch_dbs = CUSTOM_DB_FILTER.out.fasta
-    }
+    //if (params.custom_db) {
+    //    CUSTOM_DB_FILTER(ch_dbs)
+    //    ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
+    //    ch_dbs = CUSTOM_DB_FILTER.out.fasta
+    //}
 
     COMPUTE_BUFFER(ch_dbs)
 
@@ -156,15 +147,15 @@ workflow BARBEQUE {
     ch_insilico_by_status.invalid.subscribe { m, t ->
         log.warn("${m.primer} did not produce any pcr products, stopping primer set")
     }
-    VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
-    ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
+    //VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
+    //ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
 
-    AMPLICON_LENGTH(VSEARCH_DEREPLICATION.out.fasta)
+    AMPLICON_LENGTH(CUTADAPT_INSILICOPCR.out.fasta)
     ch_versions = ch_versions.mix(AMPLICON_LENGTH.out.versions)
 
     //VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
 
-    VSEARCH_CLUSTER_FAST(VSEARCH_DEREPLICATION.out.fasta)
+    VSEARCH_CLUSTER_FAST(CUTADAPT_INSILICOPCR.out.fasta)
 
     //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
     //VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
@@ -184,6 +175,16 @@ workflow BARBEQUE {
     )
     ch_versions = ch_versions.mix(CLUSTER_CONSENSUS.out.versions)
 
+    if (params.completeness_table || params.taxon) {
+        BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
+        ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
+
+        COMPLETENESS_TABLE(
+            BUILD_DB_TAXIDS.out.taxids_counts
+        )
+        ch_versions = ch_versions.mix(COMPLETENESS_TABLE.out.versions)
+    }
+
     // CLUSTER_CONSENSUS.out.tsv.view { ">>> [13] CLUSTER CONSENSUS: ${it}" }
 
     //    TAXONKIT_LCA(
@@ -192,24 +193,30 @@ workflow BARBEQUE {
     //    )
     //
     //ch_versions = ch_versions.mix(TAXONKIT_LCA.out.versions)
-
+    DB_DISTRIBUTION(
+        BUILD_DB_TAXIDS.out.taxids_counts
+    )
+    ch_versions = ch_versions.mix(DB_DISTRIBUTION.out.versions)
     if (params.taxon) {
-        BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
-        ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
-
         TAXONOMIC_COVERAGE(
-            CLUSTER_CONSENSUS.out.tsv.map { m, tsv -> 
+            CLUSTER_CONSENSUS.out.tsv.map { m, tsv ->
                 tuple(m.db, m, tsv)
             }.combine(
-                BUILD_DB_TAXIDS.out.taxids.map { m, taxids -> 
-                    tuple(m.id, taxids) 
-                }, by: 0
-            ).map { db_id, meta, tsv, taxids -> 
-                tuple(meta, tsv, taxids) 
+                BUILD_DB_TAXIDS.out.taxids.map { m, taxids ->
+                    tuple(m.id, taxids)
+                },
+                by: 0
+            ).map { db_id, meta, tsv, taxids ->
+                tuple(meta, tsv, taxids)
             },
-            params.taxon
+            params.taxon,
         )
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
+
+        SPECIES_REPRESENTATION(
+            TAXONOMIC_COVERAGE.out.tsv.join(CLUSTER_CONSENSUS.out.tsv, by: 0)
+        )
+        ch_versions = ch_versions.mix(SPECIES_REPRESENTATION.out.versions)
     }
 
     CUSTOM_DUMPSOFTWAREVERSIONS(

@@ -1,11 +1,16 @@
 process TAXONOMIC_COVERAGE {
 
+    //provides taxonomic coverage using ETE toolkit
+    //input files: vsearch clusters, db taxids file
+    //taxonomy is optional 
+
     maxForks 1
     debug true
     cache false
 
     tag "${meta.primer}|${meta.db}"
-    label 'short_serial'
+    label 'medium_parllel'
+    publishDir "${params.outdir}/tax_coverage/", mode: 'copy'
 
     conda "${moduleDir}/environment.yml"
 
@@ -19,13 +24,12 @@ process TAXONOMIC_COVERAGE {
     path 'versions.yml', emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}_--${taxonomy}--"
+    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
     """
-
     ete.py --taxon "${taxonomy}" \\
-    --reference ${db_taxids} \\
-    --report ${clusters} \\
-    --output ${prefix}.tax_coverage
+        --reference "${db_taxids}" \\
+        --report "${clusters}" \\
+        --output "${prefix}--${taxonomy}--.tax_coverage"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

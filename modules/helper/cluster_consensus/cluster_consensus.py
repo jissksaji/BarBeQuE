@@ -31,7 +31,7 @@ def parse_cluster_taxonomy(input_file):
             elements = line.rstrip('\n').split('\t')
             cluster_id = elements[0]
             accession = elements[1]
-            taxid = elements[3]
+            taxid = elements[2]
 
             clusters_taxid.setdefault(cluster_id, [])
             clusters_taxid[cluster_id].append(taxid)
@@ -71,11 +71,15 @@ def main(input_file, taxdump, output):
                 disambiguation,
             ]
 
-    # Dump: original row + LCA columns appended
+    # Dump: original row + accession_name + LCA columns appended
     with open(output, 'w') as fo:
         for elements in rows:
             cluster_id = elements[0]
-            line = "\t".join(elements + clusters_cons[cluster_id])
+            accession_taxid = elements[2]
+            node = tax.get(accession_taxid)
+            accession_name = node.name if node else "Unknown"
+            
+            line = "\t".join(elements + [accession_name] + clusters_cons[cluster_id])
             fo.write(line + "\n")
 
 
