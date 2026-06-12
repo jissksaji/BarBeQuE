@@ -1,0 +1,9 @@
+name: db_distribution
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - ete3
+  - pandas
+  - plotly
