@@ -3,7 +3,7 @@
 
 import argparse
 from ete3 import NCBITaxa
-import re
+
 import sys
 
 parser = argparse.ArgumentParser(description="Script options")
@@ -61,19 +61,16 @@ def main(taxname, refs, report, output):
                 tid = n.name
                 n.name = n.sci_name
 
-                # NCBI taxonomy is full of non-species level terminal leafs
-                # we skip all leafs not matching the 'Genus species' pattern
-                if re.match(r'^[A-Z][a-z]*\s[a-z]*$', n.sci_name):
-                    # This taxon is in the blast db and was found
-                    if tid in bucket:
-                        data[n.sci_name] = f"OK\t{tid}\t{ok}"
-                    # This taxon is in the blast db and was not found
-                    elif tid in blast_tax:
-                        data[n.sci_name] = f"FAIL\t{tid}\t{fail}"
-                    # this taxon was not in the blast db
-                    else:
-                        data[n.sci_name] = f"NO_DATA\t{tid}\t{missing}"
-                    nodes.append(n)
+                # This taxon is in the blast db and was found
+                if tid in bucket:
+                    data[n.sci_name] = f"OK\t{tid}\t{ok}"
+                # This taxon is in the blast db and was not found
+                elif tid in blast_tax:
+                    data[n.sci_name] = f"FAIL\t{tid}\t{fail}"
+                # this taxon was not in the blast db
+                else:
+                    data[n.sci_name] = f"NO_DATA\t{tid}\t{missing}"
+                nodes.append(n)
 
     tree.prune(nodes)
 

@@ -18,11 +18,20 @@ process CUTADAPT_INSILICOPCR {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
     def rev_r = meta.rev.toUpperCase().reverse().tr('ACGTRYSWKMBDHVN', 'TGCAYRSWMKVHDBN')
+
+    def mismatches = params.cutadapt_mismatches as int
+    def e_value = mismatches + 0.5
+
+    def fwd_len = meta.fwd.length()
+    def rev_len = rev_r.length()
+
+    // mathematically exact overlap formula to guarantee 'mismatches' allowed errors
+    def fwd_overlap = Math.ceil((mismatches * fwd_len) / e_value) as int
+    def rev_overlap = Math.ceil((mismatches * rev_len) / e_value) as int
+
     """
 cutadapt ${args} \
-    -g "${meta.fwd}...${rev_r}" \
-    --overlap ${params.cutadapt_overlap} \
-    -e ${params.cutadapt_error_rate} \
+    -g "${meta.fwd};e=${e_value};o=${fwd_overlap}...${rev_r};e=${e_value};o=${rev_overlap}" \
     --cores ${task.cpus} \
     --buffer-size \$buffersize \
     --discard-untrimmed \
