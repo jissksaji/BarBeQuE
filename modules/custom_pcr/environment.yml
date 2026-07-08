@@ -1,0 +1,5 @@
+name: custom-pcr-cpp
+channels:
+  - conda-forge
+dependencies:
+  - gxx_linux-64

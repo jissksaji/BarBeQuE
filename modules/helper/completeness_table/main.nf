@@ -5,7 +5,7 @@ process COMPLETENESS_TABLE {
 
     conda "${moduleDir}/environment.yml"
 
-    publishDir "${params.outdir}/completeness", mode: 'copy'
+
 
     input:
     tuple val(meta), path(db_taxids)

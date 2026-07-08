@@ -4,7 +4,7 @@ process CUTADAPT_INSILICOPCR {
 
     label 'medium_parallel'
 
-    conda "${moduleDir}/environment.yml"
+    // conda "${moduleDir}/environment.yml"
     container "quay.io/biocontainers/cutadapt:5.2--py313h8c92656_1"
 
     input:
@@ -20,14 +20,14 @@ process CUTADAPT_INSILICOPCR {
     def rev_r = meta.rev.toUpperCase().reverse().tr('ACGTRYSWKMBDHVN', 'TGCAYRSWMKVHDBN')
 
     def mismatches = params.cutadapt_mismatches as int
-    def e_value = mismatches + 0.5
 
     def fwd_len = meta.fwd.length()
     def rev_len = rev_r.length()
 
     // mathematically exact overlap formula to guarantee 'mismatches' allowed errors
-    def fwd_overlap = Math.ceil((mismatches * fwd_len) / e_value) as int
-    def rev_overlap = Math.ceil((mismatches * rev_len) / e_value) as int
+    def e_value = mismatches == 0 ? 0 : mismatches + 0.5
+    def fwd_overlap = mismatches == 0 ? fwd_len : Math.ceil((mismatches * fwd_len) / e_value) as int
+    def rev_overlap = mismatches == 0 ? rev_len : Math.ceil((mismatches * rev_len) / e_value) as int
 
     """
 cutadapt ${args} \

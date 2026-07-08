@@ -2,12 +2,30 @@
 // Check input samplesheet and get read channels
 //
 
+process PROCESS_SAMPLESHEET {
+    tag "$samplesheet"
+    label 'process_single'
+
+    input:
+    path samplesheet
+
+    output:
+    path "samplesheet_processed.tsv"
+
+    script:
+    """
+    process_sample_sheet.py ${samplesheet} samplesheet_processed.tsv
+    """
+}
+
 workflow INPUT_CHECK {
     take:
     samplesheet // file: /path/to/samplesheet.csv
 
     main:
-    samplesheet
+    PROCESS_SAMPLESHEET(samplesheet)
+
+    PROCESS_SAMPLESHEET.out
         .splitCsv(header: true, sep: '\t')
         .map { row -> fastq_channel(row) }
         .set { primers }

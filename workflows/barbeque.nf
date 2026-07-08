@@ -1,43 +1,67 @@
-// Modules
+/*
+Import modules
+*/
 include { INPUT_CHECK } from './../modules/input_check'
 include { MULTIQC } from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
-include { CUSTOM_DB_FILTER } from './../modules/seqkit/custom_db_filter'
-include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file'
-include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
-include { TAXONOMIC_COVERAGE_PLOT } from './../modules/helper/taxonomic_coverage_plot/main'
+
+/*
+Helper Modules
+*/
 include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
-include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
-include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
-include { PARSE_UC } from './../modules/helper/parse_uc'
-include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
-include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
+include { DB_DISTRIBUTION } from './../modules/db_distribution/main.nf'
 include { AMPLICON_LENGTH } from './../modules/seqkit/amplicon_lengths'
+include { TAXONOMIC_COVERAGE_PLOT } from './../modules/helper/taxonomic_coverage_plot/main'
 include { COMPLETENESS_TABLE } from './../modules/helper/completeness_table/main'
 include { SPECIES_REPRESENTATION } from './../modules/helper/species_representation/main'
-include { DB_DISTRIBUTION } from './../modules/db_distribution/main.nf'
-
+include { MASK } from './../modules/mask/main.nf'
+include { PARSE_UC } from './../modules/helper/parse_uc'
+include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
+/*
+Core Modules
+*/
+include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
+include { OBIPCR_INSILICOPCR } from './../modules/obipcr'
+include { PARSE_OBIPCR } from './../modules/parse_obipcr/main.nf'
+include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
+include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
+include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
+include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 
 
 
 workflow BARBEQUE {
 
-    main:
+    take:
+    ch_dbs
+    ch_db_versions
 
+    main:
+    samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists: true)) : channel.value([])
     ch_multiqc_config = params.multiqc_config ? channel.fromPath(params.multiqc_config, checkIfExists: true).collect() : channel.value([])
     ch_multiqc_logo = params.multiqc_logo ? channel.fromPath(params.multiqc_logo, checkIfExists: true).collect() : channel.value([])
-
-    ch_versions = channel.from([])
+    ch_versions = ch_db_versions
     multiqc_files = channel.from([])
-
-    samplesheet = params.input ? channel.fromPath(file(params.input, checkIfExists: true)) : channel.value([])
-
     def taxdump_path = params.taxdump ?: params.references.taxdump
     ch_taxdump = channel.value(
-        file(taxdump_path, checkIfExists: true)
+        file(taxdump_path, checkIfExists: !params.build_references)
     )
+
+    //channel for acession_to_taxonomy(basically genbank2taxid)
+    ch_accession_taxonomy = channel.from([])
+
+    def accession_file = params.accession_taxonomy
+    if (!accession_file && taxdump_path) {
+        accession_file = files("${taxdump_path}/*{accession2taxid,genbank2taxid,nucl_}*").find()
+    }
+
+    if (accession_file) {
+        ch_accession_taxonomy = channel.value(
+            file(accession_file, checkIfExists: true)
+        )
+    }
     // The pre-installed taxdump folder
 
     // ch_taxdump = file(params.references.taxdump)
@@ -53,55 +77,19 @@ workflow BARBEQUE {
     //        }
     //    }
 
-    // the database to use - either pre-installed or user-provided
-    // Pre-installed can be a list, coma-separated:  db1,db2,db3
-    ch_dbs = channel.from([])
-    these_dbs = []
-    if (params.custom_db) {
-        these_dbs << [["id": "custom"], file(params.custom_db, checkIfExists: true)]
-    }
-    else if (params.dbs) {
-        valid_databases = params.references.databases.keySet()
-        params.dbs
-            .split(",")
-            .collect { it.toLowerCase() }
-            .each { db ->
-                if (!valid_databases.contains(db)) {
-                    log.info("Not a valid database: ${db}\nValid options are: ${valid_databases}\n")
-                    System.exit(1)
-                }
-                these_dbs << [
-                    ["id": db],
-                    file(params.references.databases[db].db, checkIfExists: true),
-                ]
-            }
-    }
-    ch_dbs = channel.fromList(these_dbs)
-
     //ch_dbs.view { ">>> [1] DB: ${it}" }
 
-    //channel for acession_to_taxonomy(basically genbank2taxid) TODO: fix params and naming
-    ch_accession_taxonomy = channel.from([])
 
-    if (params.accession_taxonomy) {
-        ch_accession_taxonomy = channel.value(
-            file(params.accession_taxonomy, checkIfExists: true)
-        )
-    }
     // Check if the samplesheet is valid
     INPUT_CHECK(samplesheet)
 
     // Copy the samplesheet to the results folder
     STAGE_SAMPLESHEET(samplesheet)
 
-    //filter custom DB if provided
-    //if (params.custom_db) {
-    //    CUSTOM_DB_FILTER(ch_dbs)
-    //    ch_versions = ch_versions.mix(CUSTOM_DB_FILTER.out.versions)
-    //    ch_dbs = CUSTOM_DB_FILTER.out.fasta
-    //}
 
-    COMPUTE_BUFFER(ch_dbs)
+
+
+
 
     //COMPUTE_BUFFER.out.buffersize.view { ">>> [4] BUFFER: ${it}" }
 
@@ -128,34 +116,52 @@ workflow BARBEQUE {
 
     //ch_primers_with_db.view { ">>> [5] PRIMER+DB: ${it}" }
 
-    CUTADAPT_INSILICOPCR(
-        ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize)
-    )
-    ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
+    def insilico_tool = (params.insilico_tool ?: 'obipcr').toLowerCase()
+    if (!(insilico_tool in ['obipcr', 'cutadapt'])) {
+        log.error("Invalid --insilico_tool '${insilico_tool}' - must be 'obipcr' or 'cutadapt'")
+        System.exit(1)
+    }
 
-    //CUTADAPT_INSILICOPCR.out.fasta.view { ">>> [7] OUT CUTADAPT: ${it}" }
+    if (insilico_tool == 'cutadapt') {
+        COMPUTE_BUFFER(ch_dbs)
+        CUTADAPT_INSILICOPCR(
+            ch_primers_with_db.combine(COMPUTE_BUFFER.out.buffersize)
+        )
+        ch_versions = ch_versions.mix(CUTADAPT_INSILICOPCR.out.versions)
+        ch_insilico_fasta = CUTADAPT_INSILICOPCR.out.fasta
+    }
+    else {
+        OBIPCR_INSILICOPCR(
+            ch_primers_with_db
+        )
+        ch_versions = ch_versions.mix(OBIPCR_INSILICOPCR.out.versions)
+        ch_insilico_fasta = OBIPCR_INSILICOPCR.out.fasta
+        
+        PARSE_OBIPCR(
+            OBIPCR_INSILICOPCR.out.raw_fasta
+        )
+        ch_versions = ch_versions.mix(PARSE_OBIPCR.out.versions)
+    }
 
-    CUTADAPT_INSILICOPCR.out.fasta
-        .branch { m, f ->
+    ch_insilico_fasta
+        .branch { _m, f ->
             valid: file(f).size() > 0
             invalid: file(f).size() == 0
         }
         .set { ch_insilico_by_status }
 
-    //ch_insilico_by_status.valid.view { ">>> [8] VALID: ${it}" }
-
-    ch_insilico_by_status.invalid.subscribe { m, t ->
-        log.warn("${m.primer} did not produce any pcr products, stopping primer set")
+    if (params.mask) {
+        MASK(ch_insilico_by_status.valid)
+        ch_amplicons = MASK.out.fasta
     }
-    //VSEARCH_DEREPLICATION(ch_insilico_by_status.valid)
-    //ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
+    else {
+        ch_amplicons = ch_insilico_by_status.valid
+    }
 
-    AMPLICON_LENGTH(CUTADAPT_INSILICOPCR.out.fasta)
+    AMPLICON_LENGTH(ch_amplicons)
     ch_versions = ch_versions.mix(AMPLICON_LENGTH.out.versions)
 
-    //VSEARCH_DEREPLICATION.out.fasta.view { ">>> [9] DEREPLICATION: ${it}" }
-
-    VSEARCH_CLUSTER_FAST(CUTADAPT_INSILICOPCR.out.fasta)
+    VSEARCH_CLUSTER_FAST(ch_amplicons)
 
     //VSEARCH_CLUSTER_FAST.out.fasta.view { ">>> [10] FASTA CENTROIDS: ${it}" }
     //VSEARCH_CLUSTER_FAST.out.uc.view { ">>> [10] UC CLUSTERING: ${it}" }
@@ -163,9 +169,19 @@ workflow BARBEQUE {
     PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)
     ch_versions = ch_versions.mix(PARSE_UC.out.versions)
 
+    // Extract the accession->taxid mapping once per db (not per primer) - this is the
+    // expensive full scan of the (potentially huge) master accession2taxid/genbank2taxid file.
+    BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
+    ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
+
     JOIN_ACCESSION_TAXONOMY(
-        PARSE_UC.out.tsv,
-        ch_accession_taxonomy,
+        PARSE_UC.out.tsv
+            .map { m, tsv -> tuple(m.db, m, tsv) }
+            .combine(
+                BUILD_DB_TAXIDS.out.accession_taxid.map { m, f -> tuple(m.id, f) },
+                by: 0
+            )
+            .map { _db_id, m, tsv, f -> tuple(m, tsv, f) }
     )
     ch_versions = ch_versions.mix(JOIN_ACCESSION_TAXONOMY.out.versions)
 
@@ -175,28 +191,19 @@ workflow BARBEQUE {
     )
     ch_versions = ch_versions.mix(CLUSTER_CONSENSUS.out.versions)
 
-    if (params.completeness_table || params.taxon) {
-        BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
-        ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
+    DB_DISTRIBUTION(
+        BUILD_DB_TAXIDS.out.taxids_counts,
+        ch_taxdump
+    )
+    ch_versions = ch_versions.mix(DB_DISTRIBUTION.out.versions)
 
+    if (params.completeness_table) {
         COMPLETENESS_TABLE(
             BUILD_DB_TAXIDS.out.taxids_counts
         )
         ch_versions = ch_versions.mix(COMPLETENESS_TABLE.out.versions)
     }
 
-    // CLUSTER_CONSENSUS.out.tsv.view { ">>> [13] CLUSTER CONSENSUS: ${it}" }
-
-    //    TAXONKIT_LCA(
-    //        JOIN_ACCESSION_TAXONOMY.out.tsv,
-    //        ch_taxdump,
-    //    )
-    //
-    //ch_versions = ch_versions.mix(TAXONKIT_LCA.out.versions)
-    DB_DISTRIBUTION(
-        BUILD_DB_TAXIDS.out.taxids_counts
-    )
-    ch_versions = ch_versions.mix(DB_DISTRIBUTION.out.versions)
     if (params.taxon) {
         TAXONOMIC_COVERAGE(
             CLUSTER_CONSENSUS.out.tsv.map { m, tsv ->
@@ -211,6 +218,7 @@ workflow BARBEQUE {
             },
             params.taxon,
         )
+
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE.out.versions)
 
         SPECIES_REPRESENTATION(
@@ -335,62 +343,4 @@ workflow BARBEQUE {
 //            log.warn "No hits left after subsetting ${m.primer} with ${params.taxon} - stopping."
 //        }
 //        
-//        // Visualize the length distribution of putative amplicons
-//        CRABS_AMPLICON_LENGTH_FIGURE(
-//            ch_subset_by_status.valid
-//        )
-//
-//        // Visualize diversity of amplicons
-//        CRABS_DIVERSITY_FIGURE(
-//            ch_subset_by_status.valid
-//        )
-//
-//        // Combine each subset with the correct database
-//        ch_subset_by_status.valid.map {m, s ->
-//            tuple(m.db,m,s)
-//        }.combine(
-//            ch_dbs.map { m,d ->
-//                tuple(m.id,d)
-//            }, by: 0
-//        ).map { k, m, s, d ->
-//            tuple(m,s,d)
-//        }.set { ch_amplicons_with_db }
-//
-//        // visualize amplification efficency
-//        CRABS_AMPLIFICATION_EFFICENCY_FIGURE(
-//            ch_amplicons_with_db,
-//            params.taxon
-//        )
-//    }
-//
-//    CUSTOM_DUMPSOFTWAREVERSIONS(
-//        ch_versions.unique().collectFile(name: 'collated_versions.yml')
-//    )
-//
-//    // Combine by meta dict to generate separate reports for each primer-db combination
-//    multiqc_by_set = multiqc_files.groupTuple(by: 0)
-//
-//    MULTIQC(
-//        multiqc_by_set,
-//        CUSTOM_DUMPSOFTWAREVERSIONS.out.mqc_yml.collect(),
-//        ch_multiqc_config,
-//        ch_multiqc_logo
-//    )
-//
-//    emit:
-//    qc = MULTIQC.out.html
-//}
-//
-
-//// turn the params map to a JSON file
-def dumpParametersToJSON(outdir) {
-    def timestamp = new java.util.Date().format('yyyy-MM-dd_HH-mm-ss')
-    def filename = "params_${timestamp}.json"
-    def temp_pf = new File(workflow.launchDir.toString(), ".${filename}")
-    def jsonStr = groovy.json.JsonOutput.toJson(params)
-    temp_pf.text = groovy.json.JsonOutput.prettyPrint(jsonStr)
-
-    nextflow.extension.FilesEx.copyTo(temp_pf.toPath(), "${outdir}/pipeline_info/params_${timestamp}.json")
-    temp_pf.delete()
-    return file("${outdir}/pipeline_info/params_${timestamp}.json")
-}
+//        // Visualize the length distribution of putati

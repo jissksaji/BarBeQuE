@@ -3,7 +3,7 @@ process SPECIES_REPRESENTATION {
     tag "${meta.primer}|${meta.db}"
     label 'process_low'
 
-    publishDir "${params.outdir}/tax_coverage", mode: 'copy'
+
 
     conda "${moduleDir}/environment.yml"
 

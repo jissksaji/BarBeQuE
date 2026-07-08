@@ -74,7 +74,7 @@ def main(taxname, refs, report, output):
 
     tree.prune(nodes)
 
-    print(tree.write(outfile=output + ".nwk", format=1))
+    tree.write(outfile=output + ".nwk", format=1)
 
     f = open(output + ".tsv", "w")
     f.write("Taxon\tStatus\tTaxid\tColor\n")

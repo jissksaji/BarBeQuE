@@ -4,7 +4,7 @@ process AMPLICON_LENGTH {
     label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
-    publishDir "${params.outdir}/amplicon_lengths", mode: 'copy'
+
 
 
     input:

@@ -13,7 +13,9 @@ class WorkflowPipeline {
             println('===========================')
             params.references.databases.keySet().each { db ->
                 def info = params.references.databases[db].description
-                println("Name: ${db}\tSource: ${info}")
+                def cached = params.reference_base &&
+                    new File("${params.reference_base}/barbeque/${params.reference_version}/filtered/${db}/${db}.cleaned.fasta").exists()
+                println("Name: ${db}\tSource: ${info}\tFiltered cache: ${cached ? 'yes' : 'no'}")
                 println('---------------------------')
             }
             System.exit(1)

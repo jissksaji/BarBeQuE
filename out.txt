@@ -1,0 +1,79 @@
+--- Default ---
+
+ N E X T F L O W   ~  version 26.04.4
+
+WARN: Nextflow version 26.04.4 does not match version required by pipeline: 24.10.5 -- execution will continue, but things might break!
+Launching `test.nf` [nice_allen] revision: 644887c709
+
+WARN: Unrecognized config option 'validation.help.enabled'
+WARN: Unrecognized config option 'validation.summary.hideParams'
+single_end = false
+mask       = false
+read_length= 150
+WARN: There's no process matching config selector: MULTIQC
+WARN: There's no process matching config selector: STAGE_SAMPLESHEET|CUSTOM_DUMPSOFTWAREVERSIONS
+WARN: There's no process matching config selector: CUTADAPT_INSILICOPCR
+WARN: There's no process matching config selector: VSEARCH_CLUSTER_FAST
+WARN: There's no process matching config selector: CLUSTER_CONSENSUS
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE
+WARN: There's no process matching config selector: BUILD_DB_TAXIDS
+WARN: There's no process matching config selector: SPECIES_REPRESENTATION
+WARN: There's no process matching config selector: COMPLETENESS_TABLE
+WARN: There's no process matching config selector: DB_DISTRIBUTION
+WARN: There's no process matching config selector: AMPLICON_LENGTH
+WARN: There's no process matching config selector: JOIN_ACCESSION_TAXONOMY
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE_PLOT
+WARN: Graphviz is required to render the execution DAG in the given format -- See http://www.graphviz.org for more info.
+--- --single_end ---
+
+ N E X T F L O W   ~  version 26.04.4
+
+WARN: Nextflow version 26.04.4 does not match version required by pipeline: 24.10.5 -- execution will continue, but things might break!
+Launching `test.nf` [grave_morse] revision: 644887c709
+
+WARN: Unrecognized config option 'validation.help.enabled'
+WARN: Unrecognized config option 'validation.summary.hideParams'
+single_end = true
+mask       = false
+read_length= 400
+WARN: There's no process matching config selector: MULTIQC
+WARN: There's no process matching config selector: STAGE_SAMPLESHEET|CUSTOM_DUMPSOFTWAREVERSIONS
+WARN: There's no process matching config selector: CUTADAPT_INSILICOPCR
+WARN: There's no process matching config selector: VSEARCH_CLUSTER_FAST
+WARN: There's no process matching config selector: CLUSTER_CONSENSUS
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE
+WARN: There's no process matching config selector: BUILD_DB_TAXIDS
+WARN: There's no process matching config selector: SPECIES_REPRESENTATION
+WARN: There's no process matching config selector: COMPLETENESS_TABLE
+WARN: There's no process matching config selector: DB_DISTRIBUTION
+WARN: There's no process matching config selector: AMPLICON_LENGTH
+WARN: There's no process matching config selector: JOIN_ACCESSION_TAXONOMY
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE_PLOT
+WARN: Graphviz is required to render the execution DAG in the given format -- See http://www.graphviz.org for more info.
+--- --mask ---
+
+ N E X T F L O W   ~  version 26.04.4
+
+WARN: Nextflow version 26.04.4 does not match version required by pipeline: 24.10.5 -- execution will continue, but things might break!
+Launching `test.nf` [nasty_wiles] revision: 644887c709
+
+WARN: Unrecognized config option 'validation.help.enabled'
+WARN: Unrecognized config option 'validation.summary.hideParams'
+single_end = false
+mask       = true
+read_length= 150
+WARN: There's no process matching config selector: MULTIQC
+WARN: There's no process matching config selector: STAGE_SAMPLESHEET|CUSTOM_DUMPSOFTWAREVERSIONS
+WARN: There's no process matching config selector: CUTADAPT_INSILICOPCR
+WARN: There's no process matching config selector: VSEARCH_CLUSTER_FAST
+WARN: There's no process matching config selector: CLUSTER_CONSENSUS
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE
+WARN: There's no process matching config selector: BUILD_DB_TAXIDS
+WARN: There's no process matching config selector: SPECIES_REPRESENTATION
+WARN: There's no process matching config selector: COMPLETENESS_TABLE
+WARN: There's no process matching config selector: DB_DISTRIBUTION
+WARN: There's no process matching config selector: AMPLICON_LENGTH
+WARN: There's no process matching config selector: JOIN_ACCESSION_TAXONOMY
+WARN: There's no process matching config selector: TAXONOMIC_COVERAGE_PLOT
+WARN: Graphviz is required to render the execution DAG in the given format -- See http://www.graphviz.org for more info.
+--- --single_end --mask ---

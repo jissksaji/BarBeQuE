@@ -6,7 +6,7 @@ process TAXONOMIC_COVERAGE_PLOT {
     cache false
 
     label 'process_low'
-    publishDir "${params.outdir}/taxonomic_coverage/", mode: 'copy'
+
 
     conda "${moduleDir}/environment.yml"
 

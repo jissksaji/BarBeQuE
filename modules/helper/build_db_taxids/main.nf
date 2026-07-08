@@ -4,7 +4,7 @@ process BUILD_DB_TAXIDS {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    publishDir "${params.outdir}/build_db_taxids", mode: 'copy'
+
 
     input:
     tuple val(meta), path(fasta)
@@ -13,6 +13,7 @@ process BUILD_DB_TAXIDS {
     output:
     tuple val(meta), path("*.db_taxids.tsv"), emit: taxids
     tuple val(meta), path("*.db_taxids_counts.tsv"), emit: taxids_counts
+    tuple val(meta), path("*.accession_taxid.tsv"), emit: accession_taxid
     tuple val(meta), path("*.missing_accessions.tsv"), emit: missing
     path "versions.yml", emit: versions
 
@@ -24,7 +25,7 @@ process BUILD_DB_TAXIDS {
     # Pre-extract accessions to drastically speed up processing and avoid awk memory limits on huge fastas
     grep "^>" ${fasta} | cut -d' ' -f1 | cut -d'>' -f2 > db_accessions.txt
 
-    awk -F'\\t' '
+    awk -F'\\t' -v acc_taxid_out="${prefix}.accession_taxid.tsv" '
         # PASS 1: DB accessions — load into lookup table
         NR == FNR {
             sub(/\\.[0-9]+\$/, "", \$1)      # strip version e.g. MK123456.1 -> MK123456
@@ -37,7 +38,9 @@ process BUILD_DB_TAXIDS {
             accession = \$1                        # col 1 = accession
             sub(/\\.[0-9]+\$/, "", accession)      # strip version to match PASS 1
             if (accession in db_accessions) {
-                print \$2                          # col 2 = taxid
+                taxid = (NF >= 3) ? \$3 : \$2
+                print accession"\\t"taxid > acc_taxid_out   # so later per-primer joins can reuse this instead of re-scanning genbank2taxid
+                print taxid                          # col 2 or 3 = taxid
                 delete db_accessions[accession]   # free from table to save memory
             }
         }
@@ -58,6 +61,7 @@ process BUILD_DB_TAXIDS {
     rm db_accessions.txt
 
     touch "${prefix}.missing_accessions.tsv"
+    touch "${prefix}.accession_taxid.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

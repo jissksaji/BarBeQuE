@@ -10,7 +10,10 @@
       "type": "object",
       "fa_icon": "fas fa-terminal",
       "description": "Define where the pipeline should find input data and save output data.",
-      "required": ["input", "outdir"],
+      "required": [
+        "input",
+        "outdir"
+      ],
       "properties": {
         "input": {
           "type": "string",
@@ -42,6 +45,14 @@
         "build_references": {
           "type": "boolean",
           "description": "Alternative workflow to install the references"
+        },
+        "install_taxdump": {
+          "type": "boolean",
+          "description": "Also download the NCBI taxonomy dump during --build_references"
+        },
+        "install_genbank": {
+          "type": "boolean",
+          "description": "Also download the NCBI accession2taxid mapping during --build_references"
         },
         "dbs": {
           "type": "string",
@@ -96,28 +107,30 @@
           "description": "Minimum overlap for cutadapt primer matching"
         },
         "cutadapt_error_rate": {
-        "type": "number",
-        "default": 0.2,
-        "description": "Maximum error rate for cutadapt primer matching"
+          "type": "number",
+          "default": 0.2,
+          "description": "Maximum error rate for cutadapt primer matching"
         },
-        "custom_db_filter_pattern":{
-          "type":"string",
-          "description":"Regex pattern for filtering bad headers from custom DB"
+        "custom_db_filter_pattern": {
+          "type": "string",
+          "description": "Regex pattern for filtering bad headers from custom DB"
         },
         "custom_db_min_length": {
           "type": "integer",
           "description": "Minimum sequence length for custom DB filtering. Must be used together with custom_db_max_length"
         },
         "custom_db_max_length": {
-            "type": "integer",
-            "description": "Maximum sequence length for custom DB filtering. Must be used together with custom_db_min_length"
+          "type": "integer",
+          "description": "Maximum sequence length for custom DB filtering. Must be used together with custom_db_min_length"
         },
         "custom_db_max_n": {
-            "type": "integer",
-            "description": "Maximum number of ambiguous bases allowed per sequence. Only applied when length filter is active"
-        } 
+          "type": "integer",
+          "description": "Maximum number of ambiguous bases allowed per sequence. Only applied when length filter is active"
+        }
       },
-      "required": ["cluster_id"]
+      "required": [
+        "cluster_id"
+      ]
     }
   },
   "allOf": [

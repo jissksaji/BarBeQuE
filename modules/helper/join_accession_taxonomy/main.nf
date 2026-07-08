@@ -1,14 +1,18 @@
 process JOIN_ACCESSION_TAXONOMY {
 
+    //joins the acessions extracted from vsearch cluster .uc files using PARSE_UC module
+    //with the per-db accession->taxid table produced once by BUILD_DB_TAXIDS
+    //(rather than re-scanning the full genbank2taxid/accession2taxid file for every primer)
+    //
+
     tag "${meta.primer}|${meta.db}"
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    publishDir "${params.outdir}/join_accession_taxonomy", mode: 'copy'
+
 
     input:
-    tuple val(meta), path(cluster_accessions)
-    path master_lookup
+    tuple val(meta), path(cluster_accessions), path(master_lookup)
 
     output:
     tuple val(meta), path("*.cluster_taxonomy.tsv"), emit: tsv
@@ -32,7 +36,8 @@ awk -F'\\t' '
 
     # Second file: data rows — join if accession is wanted
     (\$1 in cluster) {
-        print cluster[\$1], \$0
+        taxid = (NF >= 3) ? \$3 : \$2
+        print cluster[\$1], \$1, taxid
         found[\$1] = 1
     }
 

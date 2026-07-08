@@ -1,6 +1,6 @@
 process VSEARCH_CLUSTER_FAST {
     tag "${meta.primer}|${meta.db}"
-    publishDir "${params.outdir}/cluster_fast", mode: 'copy'
+
 
 
     label 'short_parallel'
@@ -25,7 +25,6 @@ process VSEARCH_CLUSTER_FAST {
     """
     vsearch --cluster_fast ${fa} \
     --threads ${task.cpus} \
-    --qmask none \
     --id 0.97 \
     --uc ${prefix}.cluster.uc ${args}
 

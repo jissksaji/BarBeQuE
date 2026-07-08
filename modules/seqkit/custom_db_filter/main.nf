@@ -1,5 +1,9 @@
 process CUSTOM_DB_FILTER {
 
+    //removes the sequences like environmental or  unclassified or unknown  from the db
+    //works purley by grepping and removing the sequnces which includes these terms from the header
+    //nextflow.config has the defaults
+
     tag "${meta.id}"
 
     label 'medium_parallel'

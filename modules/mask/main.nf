@@ -1,0 +1,31 @@
+process MASK {
+
+    tag "${meta.primer}|${meta.db}"
+
+    label 'low'
+
+    conda "${moduleDir}/environment.yml"
+    container "python:3.14-slim"
+
+    input:
+    tuple val(meta), path(fasta)
+
+    output:
+    tuple val(meta), path('*_masked.fasta'), emit: fasta
+    path ('versions.yml'), emit: versions
+
+    script:
+    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
+    """
+mask.py \
+    --input ${fasta} \
+    --output "${prefix}_masked.fasta" \
+    --read-length ${params.read_length} \
+    ${params.single_end ? '--single-end' : ''}
+
+    cat <<-END_VERSIONS > versions.yml
+"${task.process}":
+        python: \$(python3 --version | sed 's/Python //')
+END_VERSIONS
+    """
+}

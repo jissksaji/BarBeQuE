@@ -10,7 +10,7 @@ process TAXONOMIC_COVERAGE {
 
     tag "${meta.primer}|${meta.db}"
     label 'medium_parllel'
-    publishDir "${params.outdir}/tax_coverage/", mode: 'copy'
+
 
     conda "${moduleDir}/environment.yml"
 

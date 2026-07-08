@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+This script is an alternative to ete.py. ete.py only looks at the species
+Here all the ranks are listed and if an item is marked yes then , automatically the all the ranks above it would be marked 
+use it with caution for taxonomic coverage as it may artificially boost the nos.
+"""
 
 import argparse
 from ete3 import NCBITaxa
@@ -61,7 +66,28 @@ def main(taxname, refs, report, output):
         n.is_in_db = (tid in blast_tax) or any(getattr(c, "is_in_db", False) for c in n.children)
         
         # Only process standard taxonomic ranks
-        if n.rank in ["species", "subspecies", "varietas", "forma", "genus", "family", "order", "class", "phylum", "kingdom"]:
+        if n.rank in [
+    "domain",
+    "clade",
+    "subkingdom",
+    "superphylum",
+    "subphylum",
+    "superclass",
+    "subclass",
+    "superorder",
+    "suborder",
+    "infraorder",
+    "superfamily",
+    "subfamily",
+    "tribe",
+    "subtribe",
+    "subgenus",
+    "species group",
+    "species subgroup",
+    "strain",
+    "isolate",
+    "no rank"
+]:
             if n.is_in_bucket:
                 data[n.sci_name] = f"OK\t{tid}\t{ok}\t{n.rank}"
             elif n.is_in_db:
