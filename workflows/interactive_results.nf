@@ -1,5 +1,3 @@
-params.outdir = "../results"
-
 include { STREAMLIT } from '../modules/streamlit'
 
 workflow INTERACTIVE_RESULTS {
@@ -15,9 +13,4 @@ workflow INTERACTIVE_RESULTS {
 
     emit:
     versions = STREAMLIT.out.versions
-}
-
-
-workflow {
-    INTERACTIVE_RESULTS(channel.of("${params.outdir}"))
 }

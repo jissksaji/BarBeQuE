@@ -1,142 +1,219 @@
-# Usage information
+# Usage
 
-[Basic execution](#basic-execution)
-
-[Pipeline version](#specifying-pipeline-version)
-
-[Basic options](#basic-options)
-
-[Expert options](#expert-options)
-
-## Basic execution
-
-Please see our [installation guide](installation.md) to learn how to set up this pipeline first. 
-
-A basic execution of the pipeline looks as follows:
-
-a) Without a site-specific config file
+## Normal Benchmarking
 
 ```bash
-nextflow run bio-raum/BarBeQuE -profile singularity --input samples.tsv \\
---reference_base /path/to/references \\
---run_name pipeline-test
+nextflow run bio-raum/BarBeQuE \
+  -profile singularity \
+  --input primers.tsv \
+  --dbs refseq_mito,midori_co1 \
+  --reference_base /path/to/references \
+  --run_name primer_benchmark \
+  --outdir results
 ```
 
-where `path_to_references` corresponds to the location in which you have [installed](installation.md) the pipeline references (this can be omitted to trigger an on-the-fly temporary installation, but is not recommended in production). 
+`--run_name` is required when `--dbs` is supplied.
 
-In this example, the pipeline will assume it runs on a single computer with the singularity container engine available. Available options to provision software are:
+## Primer Inputs
 
-`-profile singularity`
+### Samplesheet
 
-`-profile apptainer`
+Use a tab-separated file:
 
-`-profile docker` 
+```text
+primer  fwd  rev  min  max
+COI     GGWACWGGWTGAACWGTWTAYCCYCC  TAIACYTCIGGRTGICCRAARAAYCA  100  500
+```
 
-`-profile podman` 
+Column names must be:
 
-`-profile conda` 
+- `primer`
+- `fwd`
+- `rev`
+- `min`
+- `max`
 
-Additional software provisioning tools as described [here](https://www.nextflow.io/docs/latest/container.html) may also work, but have not been tested by us. Please note that conda may not work for all packages on all platforms. If this turns out to be the case for you, please consider switching to one of the supported container engines. 
-
-**IMPORTANT** We do not recommend you use Conda for production purposes due to issues with reproducibility of environments across platforms and time. For a discussion, see [here](https://www.cell.com/cell-systems/fulltext/S2405-4712(18)30140-6?_returnURL=https%3A%2F%2Flinkinghub.elsevier.com%2Fretrieve%2Fpii%2FS2405471218301406%3Fshowall%3Dtrue)
-
-b) with a site-specific config file
+### Primer FASTA Directory
 
 ```bash
-nextflow run bio-raum/BarBeQuE -profile my_profile --input samples.tsv \\
---run_name pipeline-test \\
---dbs midoria_lrna
+nextflow run bio-raum/BarBeQuE \
+  -profile singularity \
+  --input primer_fastas/ \
+  --primer_min 100 \
+  --primer_max 500 \
+  --dbs refseq_mito \
+  --reference_base /path/to/references \
+  --run_name fasta_primer_test
 ```
 
-In this example, both `--reference_base` and the choice of software provisioning are already set in the local configuration `lsh` and don't have to be provided as command line argument. 
+Each `.fa`, `.fasta`, or `.fna` file is treated as one primer set. Headers with `fwd`, `forward`, `rev`, or `reverse` are collapsed by direction into consensus primers. A plain two-record FASTA without direction labels is treated as forward then reverse.
 
-## Specifying pipeline version
-
-If you are running this pipeline in a production setting, you will want to lock the pipeline to a specific version. This is natively supported through nextflow with the `-r` argument:
+### Named Primer Sets
 
 ```bash
-nextflow run bio-raum/BarBeQuE -profile my_profile -r 1.0 <other options here>
+nextflow run bio-raum/BarBeQuE \
+  -profile singularity \
+  --primer_set COI,Fish16S \
+  --dbs midori_co1,midori_lrrna \
+  --reference_base /path/to/references \
+  --run_name catalog_primers
 ```
 
-The `-r` option specifies a github [release tag](https://github.com/marchoeppner/THIS_PIPELINE/releases) or branch, so could also point to `main` for the very latest code release. Please note that every major release of this pipeline (1.0, 2.0 etc) comes with a new reference data set, which has the be [installed](installation.md) separately.
+Named sets come from the FooDMe2 primer catalog.
 
-## Basic options
+## Database Inputs
 
-### `--input` [default = null ]
-
-This pipeline expects a samplesheet with information on one or several primer sets for benchmarking. The format is a simple tab-delimited text file (.tsv):
-
-```TSV
-primer  fwd rev min max
-16SMeat  GACGAGAAGACCCTRTGGAGC   TCCRAGRTCGCCCCAAYC  50  100
-```
-
-| Column | Description |
-| ------ | ----------- |
-| primer | The name of the primer set, determines naming of output files |
-| fwd    | The sequence of the forward primer; can include ambigious (IUPAC) bases |
-| rev    | The sequence of the reverse primer; can include ambigious (IUPAC) bases |
-| min    | minimum length of expected amplicons |
-| max    | maximum length of expected amplicons |
-
-Please make sure that your values for min/max are somewhat realistic for your primer set; else the results may be very noisy and unreliable. 
-
-### `--dbs` [default = null]
-
-A list of one or several pre-installed databases to benchmark against. If multiple databases are requested, they have to be separated by a comma
+### Installed Databases
 
 ```bash
-nextflow run bio-raum/BarBeQuE --input primers.tsv --dbs midori_lrrna,refseq_mito ...
+--dbs refseq_mito,midori_co1
 ```
 
-### `--run_name` [default = null]
+Valid ids are defined in `conf/resources.config`. Use `--list_dbs` to print them.
 
-A descriptive name for this analysis run. Should be a single word without special characters or white spaces (i.e. my_analysis_run_01). 
+### Custom Database
 
-### `--list_dbs` [default=null]
+```bash
+--custom_db /path/to/custom.fasta
+```
 
-List all pre-installed databases and exit. Some examples include:
+Optional cleaning:
 
-| Name | Description | Taxonomy |
-| ---- | ----------- | -------- |
-| refseq_mito | The RefSeq dataset of mitochondrial genomes (v1.1) | Eukaryotes |
-| midori_lrna | The lrRNA database from MIDORI (aka 16S) |  Eukaryotes |
-| midori_cytb | The CYTB database from MIDORI | Eukaryotes |
-| mitofish | The Mitofish database | Fish |
-| silva_16S | Silva 16S database | Bacteria |
+```bash
+--custom_db_filter \
+--custom_db_filter_pattern "pattern_to_remove" \
+--custom_db_min_length 100 \
+--custom_db_max_length 500 \
+--custom_db_max_n 0
+```
 
-## Expert options
+## Taxonomy Options
 
-### `--custom_db` [default=null]
+Use an installed reference base:
 
-BarBeQue supports the use of custom databases, that is databases not installed through `--build_references`. If you have such a use case, please check the Crabs documentation for details on how to produce your database (.txt) [here](https://github.com/gjeunen/reference_database_creator?tab=readme-ov-file#5-crabs-workflow). Make sure you use the same [version](software.md) of crabs that is used by BarBeQue to avoid compatibility issues. 
+```bash
+--reference_base /path/to/references
+```
 
-In brief, the following steps are needed:
+Or pass files explicitly:
 
-- Download ncbi taxonomy - this you can re-use from your locally installed BarBeQue references
-- Download the desired data through one of the crabs download utilities, paying attention to any optional arguments for taxonomic groups etc
-- Import the database into the crabs format
+```bash
+--taxdump /path/to/new_taxdump \
+--accession_taxonomy /path/to/nucl_gb.accession2taxid
+```
 
-The resulting Text file (.txt) can then be passed to BarBeQue with `--custom_db`. 
+Restrict a selected database to a taxon and its descendants before analysis:
 
-### `--cluster_id` [ default = 0.97]
+```bash
+--taxid 9606
+```
 
-Predicted barcode sequences are clustered based on this similarty threshold to provide an estimate of the taxonomic resolution of a given barcode (i.e. how redundant it is). A smaller threshold will potentially group more barcodes. The default of 0.97 corresponds to the default clustering threshold used in FooDMe2. 
+Remove records assigned to taxids in FooDMe2's built-in blocklist:
 
-### `--taxon` [default=null]
+```bash
+--blocklist
+```
 
-The default mode of this analysis is to run against the entire target database; use this option to focus on a specific [taxonomic sub group](https://www.ncbi.nlm.nih.gov/taxonomy) and get additional information/visualization. The argument must be a valid taxon identifier (such as: 'Chordata' or 'Mammalia') at one of the following taxonomic levels:
+This option is off by default. When enabled, BarBeQuE downloads the blocklist
+from a pinned FooDMe2 revision, filters each selected FASTA before in-silico
+PCR, and writes the filtered database and removal counts to
+`blocklist_filtered/`. An accession-to-taxid mapping is required.
 
-- superkingdom
-- phylum
-- class
-- order
-- family
-- genus
-- species
+## In-Silico PCR Options
 
-For the moment, the pipeline cannot validate your taxon argument and will either crash or return empty results when an incomatible/incorrect taxon is provided. 
+Default:
 
-### `--crabs_insilicopcr_options` [ default = null ]
+```bash
+--insilico_tool obipcr
+--obipcr_mismatches 2
+--obipcr_fixed_3prime 3
+```
 
-Pass custom options to the insilico PCR stage of the CRABS analysis. This may be used to e.g. increase or decrease the number of allowed mismatched bases (`--mismatch 2`). 
+`--obipcr_fixed_3prime` forbids mismatches in the last N bases of each primer,
+mirroring a real PCR: a mismatch at the 3' end stops the polymerase from
+extending, while 5' mismatches are still tolerated up to `--obipcr_mismatches`.
+It is applied by appending `#` to those bases in the primer handed to obipcr,
+e.g. `GGGCAATCCTGAGCCAA` becomes `GGGCAATCCTGAGCC#A#A#`. Set it to `0` to allow
+mismatches anywhere in the primer.
+
+Alternative:
+
+```bash
+--insilico_tool cutadapt
+--cutadapt_mismatches 2
+```
+
+## Clustering Options
+
+```bash
+--cluster_id 0.97
+```
+
+This controls the identity threshold used by `vsearch --cluster_fast`.
+
+## Masking
+
+```bash
+--mask --read_length 150
+```
+
+For single-end data:
+
+```bash
+--mask --single_end --read_length 400
+```
+
+## Divergence Screening And Exclusion
+
+Advisory screening:
+
+```bash
+--screen_species_divergence \
+--species_divergence_id 0.99 \
+--species_hclust_method average \
+--species_hclust_max_seqs 2000
+```
+
+Curated filtering before clustering:
+
+```bash
+--exclude_accessions bad_accessions.txt
+```
+
+`bad_accessions.txt` contains one accession per line. Blank lines and lines starting with `#` are ignored. Matching is version-insensitive.
+
+## Target-Taxon Reports
+
+```bash
+--taxon Mammalia
+```
+
+This adds taxon-focused coverage outputs.
+
+```bash
+--completeness_table
+```
+
+This adds database completeness summaries using the value supplied to `--taxon`.
+
+## Interactive Dashboard
+
+```bash
+--interactive
+```
+
+This launches the Streamlit dashboard after the analysis finishes.
+
+## Standalone Hierarchical Clustering
+
+```bash
+nextflow run bio-raum/BarBeQuE \
+  -profile singularity \
+  --hierarchical_clustering \
+  --custom_db custom.fasta \
+  --reference_base /path/to/references \
+  --run_name custom_screen \
+  --outdir results_hclust
+```
+
+This mode screens a custom FASTA directly. Do not provide `--input`, `--primer_set`, or `--dbs`.

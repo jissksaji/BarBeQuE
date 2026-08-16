@@ -18,17 +18,26 @@ git@github.com:bio-raum/barbeque.git
 params.version = workflow.manifest.version
 
 include { BARBEQUE } from './workflows/barbeque'
+include { HIERARCHICAL_CLUSTERING_WORKFLOW } from './workflows/hierarchical_clustering'
 include { BUILD_REFERENCES }    from './workflows/build_references'
 include { PIPELINE_COMPLETION } from './subworkflows/pipeline_completion'
 include { DATABASE } from './subworkflows/database'
 include { INTERACTIVE_RESULTS } from './workflows/interactive_results'
-include { paramsSummaryLog } from 'plugin/nf-schema'
+include { paramsHelp; paramsSummaryLog } from 'plugin/nf-schema'
 
 workflow {
 
 
   if (!workflow.containerEngine) {
     log.info("\033[1;31mRunning with Conda is not recommended in production!\033[0m\n\033[0;31mConda environments are not guaranteed to be reproducible - for a discussion, see https://pubmed.ncbi.nlm.nih.gov/29953862/.\033[0m")
+  }
+
+  if (params.help) {
+      log.info paramsHelp(command: "nextflow run main.nf")
+      System.exit(0)
+  }
+  if (params.helpFull) {
+      System.exit(0)
   }
 
   WorkflowMain.initialise(workflow, params, log)
@@ -39,6 +48,8 @@ workflow {
 
   if (params.build_references) {
       BUILD_REFERENCES()
+  } else if (params.hierarchical_clustering) {
+      HIERARCHICAL_CLUSTERING_WORKFLOW()
   } else {
       DATABASE()
       BARBEQUE(DATABASE.out.db, DATABASE.out.versions)

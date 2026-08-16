@@ -1,0 +1,8 @@
+primer	database_sequences	amplified_sequences	covered_targets	genus_or_finer_targets	total_targets	genus_coverage_pct
+PCR_matK	54	2	2	1	82	1.2195121951219512
+PCR_rbcL	54	26	25	1	82	1.2195121951219512
+Rubisco-ribulose-1,5-bisphosphate-carboxylase_oxygenase-large-subunit-180	54	41	40	3	82	3.6585365853658534
+intron-region-of-a-transfer-RNA-gene-133-tnrl	54	31	31	10	82	12.195121951219512
+PCR_psbA-trnH	54	31	32	26	82	31.70731707317073
+PCR_trnL	54	44	44	27	82	32.926829268292686
+intron-region-of-a-transfer-RNA-gene-200-1000	54	44	44	27	82	32.926829268292686

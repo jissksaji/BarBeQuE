@@ -1,7 +1,7 @@
 process STREAMLIT {
 
     tag "dashboard"
-    label 'process_low'
+    label 'medium_serial'
     debug true
     cache false
 
@@ -14,6 +14,8 @@ process STREAMLIT {
     path "versions.yml", emit: versions
 
     script:
+    def abs_results_dir = new File(results_dir).isAbsolute() ? results_dir : "${workflow.launchDir}/${results_dir}"
+    def teeliste = file(params.teeliste, checkIfExists: true)
     """
     set -euo pipefail
 
@@ -22,7 +24,8 @@ pkill -f "streamlit run.*app.py" || true
 python -m streamlit run ${moduleDir}/../../bin/app.py \\
     --server.port 8501 \\
     --server.headless true \\
-    -- "${results_dir}" > "${params.outdir}/streamlit.log" 2>&1 &
+    --server.fileWatcherType poll \\
+    -- "${abs_results_dir}" "${teeliste}" > streamlit.log 2>&1 &
 
 sleep 3
 

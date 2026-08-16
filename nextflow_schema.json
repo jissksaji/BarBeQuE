@@ -11,19 +11,14 @@
       "fa_icon": "fas fa-terminal",
       "description": "Define where the pipeline should find input data and save output data.",
       "required": [
-        "input",
         "outdir"
       ],
       "properties": {
         "input": {
           "type": "string",
-          "format": "file-path",
           "exists": true,
-          "schema": "assets/schema_input.json",
-          "mimetype": "text/csv",
-          "pattern": "^\\S+\\.csv$",
-          "description": "Path to comma-separated file containing information about the samples in the experiment.",
-          "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
+          "description": "Path to a tab-separated primer samplesheet, or to a directory of primer FASTA files. Alternative to --primer_set (mutually exclusive) - required unless --primer_set or --build_references is given.",
+          "help_text": "Provide either a TSV samplesheet with primer, fwd, rev, min and max columns, or a directory containing .fa/.fasta/.fna primer FASTA files. Directory input requires --primer_min and --primer_max.",
           "fa_icon": "fas fa-file-csv"
         },
         "outdir": {
@@ -32,6 +27,13 @@
           "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
           "fa_icon": "fas fa-folder-open",
           "default": "results"
+        },
+        "teeliste": {
+          "type": "string",
+          "format": "file-path",
+          "exists": true,
+          "description": "Target-taxa TSV used by the interactive Tea List and Primer Evaluation pages",
+          "default": "res/teeliste.tsv"
         }
       }
     },
@@ -48,23 +50,57 @@
         },
         "install_taxdump": {
           "type": "boolean",
-          "description": "Also download the NCBI taxonomy dump during --build_references"
+          "description": "Install both the NCBI taxonomy dump and nucl_gb.accession2taxid during --build_references"
         },
-        "install_genbank": {
-          "type": "boolean",
-          "description": "Also download the NCBI accession2taxid mapping during --build_references"
+
+        "primer_min": {
+          "type": "integer",
+          "description": "Global minimum amplicon length for --input primer FASTA directory mode"
+        },
+        "primer_max": {
+          "type": "integer",
+          "description": "Global maximum amplicon length for --input primer FASTA directory mode"
+        },
+        "genbank_taxid": {
+          "type": "integer",
+          "description": "Restrict the BLASTN-vs-core_nt search to this taxid; unrestricted (searches all of core_nt) if not set"
         },
         "dbs": {
           "type": "string",
           "description": "A comma-separated list of pre-installed databases to benchmark against"
         },
+        "taxid": {
+          "type": "integer",
+          "description": "Restrict --dbs/--custom_db to this taxid (and its descendants) before analysis, so only that taxon is analysed/checked"
+        },
+        "blocklist": {
+          "type": "boolean",
+          "description": "Remove reference records assigned to taxids in FooDMe2's built-in blocklist before in-silico PCR",
+          "default": false
+        },
         "list_dbs": {
           "type": "boolean",
           "description": "List installed databases and exit"
         },
+        "primer_set": {
+          "type": "string",
+          "description": "A comma-separated list of named primer sets (from the bio-raum/FooDMe2 catalog) to use instead of --input"
+        },
+        "list_primers": {
+          "type": "boolean",
+          "description": "List available primer sets (as JSON) and exit"
+        },
         "reference_base": {
           "type": "string",
-          "description": "The base folder to which the references have been installed (only needed when running without site-specific config)"
+          "description": "The base folder to which the references have been installed "
+        },
+        "taxdump": {
+          "type": "string",
+          "description": "Path to a pre-installed NCBI taxdump directory. Overrides the default derived from --reference_base/--reference_version."
+        },
+        "accession_taxonomy": {
+          "type": "string",
+          "description": "Path to an accession2taxid/genbank2taxid mapping file. Overrides the default derived from --reference_base/--reference_version."
         },
         "run_name": {
           "type": "string",
@@ -72,13 +108,17 @@
         },
         "taxon": {
           "type": "string",
-          "description": "A valid taxonomic identifier (e.g. 'Mammalia') to perform in-depth analysis for"
+          "description": "A valid taxonomic identifier (e.g. 'Mammalia') to perform in-depth analysis to get the species coverage using ete"
+        },
+        "interactive": {
+          "type": "boolean",
+          "description": "Launch the Streamlit results dashboard (port 8501) after the run completes",
+          "default": false
         },
         "version": {
           "type": "boolean",
           "description": "Display version and exit.",
-          "fa_icon": "fas fa-question-circle",
-          "hidden": true
+          "fa_icon": "fas fa-question-circle"
         }
       }
     },
@@ -88,6 +128,25 @@
       "description": "",
       "default": "",
       "properties": {
+        "insilico_tool": {
+          "type": "string",
+          "description": "Tool used for in-silico PCR (e.g., obipcr or cutadapt)",
+          "default": "obipcr"
+        },
+        "mask": {
+          "type": "boolean",
+          "description": "Mask primer-binding regions in each amplicon",
+          "default": false
+        },
+        "single_end": {
+          "type": "boolean",
+          "description": "Specify if data is single-end",
+          "default": false
+        },
+        "read_length": {
+          "type": "integer",
+          "description": "Expected read length (default 400 for single end, 150 otherwise)"
+        },
         "custom_db": {
           "type": "string",
           "description": "A custom database formatted with crabs 1.0.7 and above"
@@ -96,20 +155,6 @@
           "type": "number",
           "default": 0.97,
           "description": "The identity threshold to group barcode sequences by"
-        },
-        "crabs_insilicopcr_options": {
-          "type": "string",
-          "description": "A set of custom options to pass to the in-silico PCR process"
-        },
-        "cutadapt_overlap": {
-          "type": "integer",
-          "default": 2,
-          "description": "Minimum overlap for cutadapt primer matching"
-        },
-        "cutadapt_error_rate": {
-          "type": "number",
-          "default": 0.2,
-          "description": "Maximum error rate for cutadapt primer matching"
         },
         "custom_db_filter_pattern": {
           "type": "string",
@@ -126,6 +171,61 @@
         "custom_db_max_n": {
           "type": "integer",
           "description": "Maximum number of ambiguous bases allowed per sequence. Only applied when length filter is active"
+        },
+        "obipcr_mismatches": {
+          "type": "integer",
+          "description": "Number of mismatches allowed for obipcr",
+          "default": 2
+        },
+        "obipcr_fixed_3prime": {
+          "type": "integer",
+          "description": "Number of 3'-terminal bases of each primer that must match without mismatch, as in a real PCR. Applied by appending '#' to those bases in the obipcr primer. 0 disables the clamp",
+          "default": 3,
+          "minimum": 0
+        },
+        "cutadapt_mismatches": {
+          "type": "integer",
+          "description": "Number of mismatches allowed for cutadapt",
+          "default": 2
+        },
+        "custom_db_filter": {
+          "type": "boolean",
+          "description": "Apply custom DB filtering",
+          "default": false
+        },
+        "hierarchical_clustering": {
+          "type": "boolean",
+          "description": "Run the standalone custom DB workflow: optional custom DB filtering, per-species dereplication, and hierarchical clustering",
+          "default": false
+        },
+        "screen_species_divergence": {
+          "type": "boolean",
+          "description": "Run per-species divergence screening (advisory): dereplicate + hierarchically cluster amplicons per species and graph candidate misannotations. Does not change clustering input.",
+          "default": false
+        },
+        "species_divergence_id": {
+          "type": "number",
+          "description": "Intra-species identity threshold; sequences below this identity to the rest of their species are flagged as candidate misannotations",
+          "default": 0.99
+        },
+        "species_hclust_method": {
+          "type": "string",
+          "description": "scipy.cluster.hierarchy linkage method used for intra-species hierarchical clustering",
+          "default": "average"
+        },
+        "species_hclust_max_seqs": {
+          "type": "integer",
+          "description": "Skip hierarchical clustering (mark 'not screened') for species with more than this many sequences",
+          "default": 2000
+        },
+        "exclude_accessions": {
+          "type": "string",
+          "description": "Path to an author-maintained accession exclusion list (one accession per line, # comments allowed). Listed accessions are removed from the amplicons before clustering."
+        },
+        "completeness_table": {
+          "type": "boolean",
+          "description": "Report how completely the target taxon is represented in each reference database",
+          "default": false
         }
       },
       "required": [
@@ -146,38 +246,29 @@
   ],
   "properties": {
     "reference_version": {
-      "type": "integer",
-      "default": 1,
-      "hidden": true
+      "type": "string",
+      "default": "1.1"
     },
     "plaintext_email": {
-      "type": "boolean",
-      "hidden": true
+      "type": "boolean"
     },
     "midori_version": {
       "type": "string",
-      "default": "265_2025-03-08",
-      "hidden": true
+      "default": "271_2026-04-07"
     },
     "multiqc_config": {
-      "type": "string",
-      "default": "/home/mhoeppner/git/bio-raum/BarBeQuE/conf/multiqc_config.yaml",
-      "hidden": true
+      "type": "string"
     },
     "multiqc_logo": {
-      "type": "string",
-      "default": "/home/mhoeppner/git/bio-raum/BarBeQuE/assets/pipelinelogo.png",
-      "hidden": true
+      "type": "string"
     },
     "publish_dir_mode": {
       "type": "string",
-      "default": "copy",
-      "hidden": true
+      "default": "copy"
     },
     "custom_config_base": {
       "type": "string",
-      "default": "https://raw.githubusercontent.com/bio-raum/nf-configs/main",
-      "hidden": true
+      "default": "https://raw.githubusercontent.com/bio-raum/nf-configs/main"
     }
   }
 }

@@ -1,8 +1,8 @@
 process VSEARCH_DEREPLICATION {
 
-    tag "${meta.primer}|${meta.db}"
+    tag "${meta.primer}|${meta.db}|sp${meta.species}"
 
-    label 'short_parallel'
+    label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
 
@@ -11,13 +11,16 @@ process VSEARCH_DEREPLICATION {
 
     output:
     tuple val(meta), path("*.derep.fasta"), emit: fasta
+    tuple val(meta), path("*.derep.uc"), emit: uc
     path "versions.yml", emit: versions
 
     script:
-    def prefix = "${meta.primer}_${meta.db}"
+    def prefix = meta.species ? "${meta.primer}_${meta.db}.sp_${meta.species}" : "${meta.primer}_${meta.db}"
     """
     vsearch \\
     --fastx_uniques ${fasta} \\
+    --sizeout \\
+    --uc ${prefix}.derep.uc \\
     --fastaout ${prefix}.derep.fasta
 
     cat <<-END_VERSIONS > versions.yml

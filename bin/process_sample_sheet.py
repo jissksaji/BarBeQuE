@@ -8,9 +8,14 @@ IUPAC = {
     frozenset('ACT'): 'H', frozenset('ACG'): 'V', frozenset('ACGT'): 'N'
 }
 
+EXPAND = {v: k for k, v in IUPAC.items()}
+
 def collapse(seqs):
     # Combine the letters at each position into a single IUPAC degenerate code
-    return "".join(IUPAC.get(frozenset(seq[i].upper() for seq in seqs), 'N') for i in range(len(seqs[0])))
+    return "".join(
+        IUPAC.get(frozenset().union(*(EXPAND.get(seq[i].upper(), frozenset('ACGT')) for seq in seqs)), 'N')
+        for i in range(len(seqs[0]))
+    )
 
 def process_sample_sheet(input_file, output_file):
     # Read line by line

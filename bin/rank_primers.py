@@ -23,6 +23,7 @@ if not teeliste_path.exists() or not consensus_dir.exists():
 
 print("Loading teeliste targets...")
 teeliste_df = pd.read_csv(teeliste_path, sep="\t", header=0)
+teeliste_df = teeliste_df.iloc[:, :3]
 teeliste_df.columns = ["german_name", "latin_name", "taxid"]
 teeliste_taxids = set(teeliste_df["taxid"].astype(str).str.strip())
 TOTAL_TARGETS = len(teeliste_taxids)
@@ -36,11 +37,11 @@ COLUMNS = [
 
 results = []
 
-consensus_files = list(consensus_dir.glob("*_consensus.tsv"))
+consensus_files = list(consensus_dir.glob("*.cluster_consensus.tsv"))
 print(f"Found {len(consensus_files)} consensus files. Analyzing...")
 
 for file_path in consensus_files:
-    primer_name = file_path.name.replace("_consensus.tsv", "")
+    primer_name = file_path.name.replace(".cluster_consensus.tsv", "")
     
     try:
         df = pd.read_csv(file_path, sep="\t", header=None, names=COLUMNS, on_bad_lines="skip")
@@ -70,6 +71,13 @@ for file_path in consensus_files:
 
     # 2. Calculate Coverage (% of teeliste targets amplified)
     # A target is "amplified" if its taxid is found in accession_taxid OR assigned_taxid
+    total_accessions = df["accession"].nunique()
+    total_amplicons = len(df)
+    accession_counts = df["accession"].value_counts()
+    multi_amplicon_accessions = len(accession_counts[accession_counts > 1])
+    multi_amplicon_pct = (multi_amplicon_accessions / total_accessions * 100) if total_accessions > 0 else 0
+    
+    
     accession_taxids = set(df["accession_taxid"].astype(str).str.strip().unique())
     assigned_taxids = set(df["assigned_taxid"].astype(str).str.strip().unique())
     
@@ -106,6 +114,9 @@ for file_path in consensus_files:
     results.append({
         "Primer Name": primer_name,
         "Total Clusters": total_clusters,
+        "Total Amplicons": total_amplicons,
+        "Amplified Accessions": total_accessions,
+        "Multi-Amplicon Acc (%)": round(multi_amplicon_pct, 2),
         "Amplified TaxIDs": total_amplified_taxids_count,
         "Resolution (Species %)": round(resolution_pct, 2),
         "Resolution (Genus %)": round(resolution_genus_pct, 2),

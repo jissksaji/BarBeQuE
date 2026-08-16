@@ -23,8 +23,15 @@ process PARSE_UC {
             acc = \$9
 
             #  cleanup of accession field
-            sub(/;size=[0-9]+;?\$/, "", acc)     # strip vsearch size annotation
-            sub(/\\.[0-9]+\$/, "", acc)          # strip version (.1, .2, etc.)
+            # Two rules for this awk block, both learned the hard way:
+            #   1. escape every dollar sign as \\\$ -- an unescaped one (above all a
+            #      dollar immediately followed by a slash) is eaten by Nextflow
+            #      interpolation and silently corrupts the generated script
+            #   2. no apostrophes, not even in comments -- they close the shell quote
+            sub(/;.*/, "", acc)                  # drop everything from the first semicolon:
+                                                 # covers SINTAX headers (ACC;tax=k:...,s:...;)
+                                                 # and the vsearch size annotation (;size=N;)
+            sub(/(\\.[0-9]+)+\$/, "", acc)       # strip version/range (.1, .1.1791, etc.)
 
             #skip empty or *
             if (acc != "*" && acc != "") {

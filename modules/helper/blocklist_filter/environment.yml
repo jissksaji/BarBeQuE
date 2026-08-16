@@ -1,0 +1,5 @@
+name: blocklist_filter
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.10

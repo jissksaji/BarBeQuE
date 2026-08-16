@@ -10,7 +10,6 @@ process JOIN_ACCESSION_TAXONOMY {
 
     conda "${moduleDir}/environment.yml"
 
-
     input:
     tuple val(meta), path(cluster_accessions), path(master_lookup)
 
@@ -24,32 +23,28 @@ process JOIN_ACCESSION_TAXONOMY {
     """
 set -euo pipefail
 
-awk -F'\\t' '
+awk -F'\\t' -v prefix="${prefix}" '
     BEGIN { OFS = "\\t" }
 
-    # First file: load cluster_id + accession into hash
+    # First file: load master_lookup (accession -> taxid) into hash
     NR == FNR {
-        cluster[\$2] = \$1
-        wanted[\$2] = 1
+        taxid = (NF >= 3) ? \$3 : \$2
+        lookup[\$1] = taxid
         next
     }
 
-    # Second file: data rows — join if accession is wanted
-    (\$1 in cluster) {
-        taxid = (NF >= 3) ? \$3 : \$2
-        print cluster[\$1], \$1, taxid
-        found[\$1] = 1
-    }
-
-    END {
-        # Write missing accessions to separate file
-        for (acc in wanted) {
-            if (!(acc in found)) {
-                print cluster[acc] "\\t" acc > "${prefix}.missing_accessions.tsv"
-            }
+    # Second file: cluster_accessions (cluster_id, accession)
+    {
+        cluster_id = \$1
+        acc = \$2
+        
+        if (acc in lookup) {
+            print cluster_id, acc, lookup[acc]
+        } else {
+            print cluster_id "\\t" acc > (prefix ".missing_accessions.tsv")
         }
     }
-' ${cluster_accessions} ${master_lookup} \\
+' ${master_lookup} ${cluster_accessions} \\
 > "${prefix}.cluster_taxonomy.tsv"
 
 # Ensure missing file exists even if empty

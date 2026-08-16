@@ -1,0 +1,15 @@
+BUILD_DB_TAXIDS:
+  awk: GNU Awk 5.4.1, API 4.1, PMA Avon 8-g1, (GNU MPFR 4.2.2, GNU MP 6.3.0)
+CUSTOM_DUMPSOFTWAREVERSIONS:
+  python: 3.14.6
+  yaml: 6.0.3
+DB_DISTRIBUTION:
+  python: 3.14.6
+  taxidTools: 3.2.1
+OBIPCR_INSILICOPCR:
+  obipcr: OBITools Release 4.4.45
+PARSE_OBIPCR:
+  python: 3.10.20
+Workflow:
+  Nextflow: 26.04.4
+  bio-raum/BarBeQuE: '0.6'

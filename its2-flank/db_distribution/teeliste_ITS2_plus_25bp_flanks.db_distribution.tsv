@@ -1,0 +1,71 @@
+taxid	count	resolved_rank	kingdom	phylum	class	order	family	genus	species
+2708	10	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus x limon
+2711	45	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus sinensis
+3258	14	species	Viridiplantae	Streptophyta	Polypodiopsida	Equisetales	Equisetaceae	Equisetum	Equisetum arvense
+3311	12	species	Viridiplantae	Streptophyta	Ginkgoopsida	Ginkgoales	Ginkgoaceae	Ginkgo	Ginkgo biloba
+3641	7	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Theobroma	Theobroma cacao
+3747	22	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Fragaria	Fragaria x ananassa
+3750	30	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Malus	Malus domestica
+3752	5	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Malus	Malus sylvestris
+4054	122	species	Viridiplantae	Streptophyta	Magnoliopsida	Apiales	Araliaceae	Panax	Panax ginseng
+4146	14	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Oleaceae	Olea	Olea europaea
+4202	14	species	Viridiplantae	Streptophyta	Magnoliopsida	Dipsacales	Adoxaceae	Sambucus	Sambucus nigra
+4222	68	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Carthamus	Carthamus tinctorius
+4232	14	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Helianthus	Helianthus annuus
+4442	101	species	Viridiplantae	Streptophyta	Magnoliopsida	Ericales	Theaceae	Camellia	Camellia sinensis
+13427	46	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Cichorium	Cichorium intybus
+13451	53	species	Viridiplantae	Streptophyta	Magnoliopsida	Fagales	Betulaceae	Corylus	Corylus avellana
+13750	9	species	Viridiplantae	Streptophyta	Magnoliopsida	Ericales	Ericaceae	Vaccinium	Vaccinium macrocarpon
+29719	17	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Lamiaceae	Mentha	Mentha spicata
+32247	28	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Rubus	Rubus idaeus
+34256	20	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Lamiaceae	Mentha	Mentha x piperita
+34317	18	species	Viridiplantae	Streptophyta	Magnoliopsida	Myrtales	Myrtaceae	Eucalyptus	Eucalyptus globulus
+36596	204	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Prunus	Prunus armeniaca
+36777	20	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Elaeagnaceae	Elaeagnus	Elaeagnus angustifolia
+37656	9	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus x paradisi
+38860	10	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Lamiaceae	Mentha	Mentha suaveolens
+38868	35	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Lamiaceae	Salvia	Salvia officinalis
+39338	13	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Lamiaceae	Melissa	Melissa officinalis
+41492	19	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Bellis	Bellis perennis
+41496	17	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Calendula	Calendula officinalis
+41522	21	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Centaurea	Centaurea cyanus
+43166	16	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus x aurantium
+49827	50	species	Viridiplantae	Streptophyta	Magnoliopsida	Fabales	Fabaceae	Glycyrrhiza	Glycyrrhiza glabra
+50225	67	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Taraxacum	Taraxacum officinale
+51240	147	species	Viridiplantae	Streptophyta	Magnoliopsida	Fagales	Juglandaceae	Juglans	Juglans regia
+55670	5	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Stevia	Stevia rebaudiana
+69266	8	species	Viridiplantae	Streptophyta	Magnoliopsida	Ericales	Ericaceae	Vaccinium	Vaccinium corymbosum
+69717	1	species	Viridiplantae	Streptophyta	Magnoliopsida	Saxifragales	Paeoniaceae	Paeonia	Paeonia officinalis
+70073	2	species	Viridiplantae	Streptophyta	Magnoliopsida	Fabales	Fabaceae	Cyclopia	Cyclopia genistoides
+72402	17	species	Viridiplantae	Streptophyta	Magnoliopsida	Fabales	Fabaceae	Senna	Senna alexandrina
+74635	23	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Rosa	Rosa canina
+78511	11	species	Viridiplantae	Streptophyta	Magnoliopsida	Saxifragales	Grossulariaceae	Ribes	Ribes nigrum
+82423	17	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Tilia	Tilia platyphyllos
+85571	49	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus reticulata
+94328	49	species	Viridiplantae	Streptophyta	Magnoliopsida	Zingiberales	Zingiberaceae	Zingiber	Zingiber officinale
+97441	15	species	Viridiplantae	Streptophyta	Magnoliopsida	Malpighiales	Violaceae	Viola	Viola odorata
+106677	10	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rhamnaceae	Frangula	Frangula alnus
+119949	94	species	Viridiplantae	Streptophyta	Magnoliopsida	Myrtales	Myrtaceae	Myrtus	Myrtus communis
+121718	4	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Tilia	Tilia tomentosa
+127986	16	varietas	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Matricaria	Matricaria chamomilla
+137220	51	species	Viridiplantae	Streptophyta	Magnoliopsida	Caryophyllales	Polygonaceae	Rheum	Rheum officinale
+137221	187	species	Viridiplantae	Streptophyta	Magnoliopsida	Caryophyllales	Polygonaceae	Rheum	Rheum palmatum
+145754	35	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Malva	Malva sylvestris
+155109	2	species	Viridiplantae	Streptophyta	Magnoliopsida	Fabales	Fabaceae	Cyclopia	Cyclopia subternata
+155124	25	species	Viridiplantae	Streptophyta	Magnoliopsida	Fabales	Fabaceae	Aspalathus	Aspalathus linearis
+159033	14	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Rutaceae	Citrus	Citrus x aurantiifolia
+171929	19	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Anacardiaceae	Anacardium	Anacardium occidentale
+172266	25	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Tilia	Tilia cordata
+180763	90	species	Viridiplantae	Streptophyta	Magnoliopsida	Ericales	Ericaceae	Vaccinium	Vaccinium myrtillus
+183260	14	species	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Hibiscus	Hibiscus sabdariffa
+185542	25	species	Viridiplantae	Streptophyta	Magnoliopsida	Aquifoliales	Aquifoliaceae	Ilex	Ilex paraguariensis
+193516	60	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Elaeagnaceae	Hippophae	Hippophae rhamnoides
+211815	4	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Rubus	Rubus fruticosus
+214053	15	species	Viridiplantae	Streptophyta	Magnoliopsida	Malpighiales	Violaceae	Viola	Viola tricolor
+261776	4	species	Viridiplantae	Streptophyta	Magnoliopsida	Asterales	Asteraceae	Helichrysum	Helichrysum arenarium
+271192	8	species	Viridiplantae	Streptophyta	Magnoliopsida	Apiales	Apiaceae	Pimpinella	Pimpinella anisum
+392747	3	species	Viridiplantae	Streptophyta	Magnoliopsida	Sapindales	Sapindaceae	Paullinia	Paullinia cupana
+661339	15	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Aronia	Aronia melanocarpa
+714495	11	species	Viridiplantae	Streptophyta	Magnoliopsida	Rosales	Rosaceae	Rubus	Rubus chingii
+925377	2	species	Viridiplantae	Streptophyta	Magnoliopsida	Lamiales	Verbenaceae	Aloysia	Aloysia citrodora
+984867	2	species	Viridiplantae	Streptophyta	Magnoliopsida	Ranunculales	Ranunculaceae	Consolida	Consolida regalis

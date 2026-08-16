@@ -1,6 +1,6 @@
 process BUILD_DB_TAXIDS {
 
-    tag "${meta.db}"
+    tag "${meta.id}"
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
@@ -18,17 +18,19 @@ process BUILD_DB_TAXIDS {
     path "versions.yml", emit: versions
 
     script:
-    def prefix = task.ext.prefix ?: "${meta.db}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     set -euo pipefail
 
     # Pre-extract accessions to drastically speed up processing and avoid awk memory limits on huge fastas
-    grep "^>" ${fasta} | cut -d' ' -f1 | cut -d'>' -f2 > db_accessions.txt
+    # cut -d';' keeps SINTAX-formatted headers (>ACC;tax=k:...,s:...;) working alongside plain
+    # GenBank headers (>ACC.1 description)
+    grep "^>" ${fasta} | cut -d' ' -f1 | cut -d'>' -f2 | cut -d';' -f1 > db_accessions.txt
 
     awk -F'\\t' -v acc_taxid_out="${prefix}.accession_taxid.tsv" '
         # PASS 1: DB accessions — load into lookup table
         NR == FNR {
-            sub(/\\.[0-9]+\$/, "", \$1)      # strip version e.g. MK123456.1 -> MK123456
+            sub(/(\\.[0-9]+)+\$/, "", \$1)   # strip version/range e.g. MK123456.1 or AY846379.1.1791 -> base accession
             db_accessions[\$1] = 1
             next
         }
@@ -36,7 +38,7 @@ process BUILD_DB_TAXIDS {
         # PASS 2: genbank2taxid — if accession matched, emit taxid and free from table
         {
             accession = \$1                        # col 1 = accession
-            sub(/\\.[0-9]+\$/, "", accession)      # strip version to match PASS 1
+            sub(/(\\.[0-9]+)+\$/, "", accession)   # strip version/range to match PASS 1
             if (accession in db_accessions) {
                 taxid = (NF >= 3) ? \$3 : \$2
                 print accession"\\t"taxid > acc_taxid_out   # so later per-primer joins can reuse this instead of re-scanning genbank2taxid

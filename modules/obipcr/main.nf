@@ -1,3 +1,15 @@
+// obipcr forbids a mismatch at a base when that base is followed by '#', so clamping
+// the last few bases reproduces a real PCR: a mismatch at the primer's 3' end stops the
+// polymerase from extending, while mismatches further 5' are still tolerated.
+// GGGCAATCCTGAGCCAA -> GGGCAATCCTGAGCC#A#A#
+def clamp_3prime(primer, positions) {
+    def bases = primer.replace('#', '')
+    if (positions <= 0 || bases.length() <= positions) {
+        return bases
+    }
+    return bases[0..<(bases.length() - positions)] + bases[-positions..-1].collect { base -> base + '#' }.join()
+}
+
 process OBIPCR_INSILICOPCR {
 
     tag "${meta.primer}|${meta.db}"
@@ -22,8 +34,13 @@ process OBIPCR_INSILICOPCR {
         ? params.obipcr_mismatches as int
         : params.cutadapt_mismatches as int
 
-    def fwd_primer = meta.fwd
-    def rev_primer = meta.rev
+    def fixed_3prime = params.containsKey('obipcr_fixed_3prime')
+        ? params.obipcr_fixed_3prime as int
+        : 0
+
+    def fwd_primer = clamp_3prime(meta.fwd, fixed_3prime)
+    def rev_primer = clamp_3prime(meta.rev, fixed_3prime)
+    def flanking_arg = params.obipcr_only_complete_flanking ? '--only-complete-flanking' : ''
 
     """
     obipcr ${args} \\
@@ -36,7 +53,7 @@ process OBIPCR_INSILICOPCR {
         --fasta-output \\
         --no-progressbar \\
         --skip-empty \\
-        --only-complete-flanking \\
+        ${flanking_arg} \\
         "${db}" \\
         | tee "${prefix}_raw.fasta" \\
         | seqkit replace -p '_sub\\[.*' -r '' \\

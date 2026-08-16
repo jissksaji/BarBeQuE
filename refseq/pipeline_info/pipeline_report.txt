@@ -1,0 +1,48 @@
+
+version: 0.6
+session: 1a32ec31-df97-4fbc-8ebc-8001d2d37716
+success: false
+dateStarted: 2026-07-20T13:47:50.529484504+02:00
+dateComplete: 2026-07-20T13:53:09.209016867+02:00
+duration: 5m 19s
+exitStatus: null
+errorMessage: SIGINT
+errorReport: SIGINT
+commandLine: nextflow run main.nf --reference_base /tmp/barbeque-alpha-check/ --dbs refseq_plastid --input /home/saj/barbeque-alpha/samplesheet/sample_sheet.tsv -profile conda --interactive -resume --outdir refseq --run_name ref
+projectDir: /home/saj/barbeque-alpha/BarBeQuE
+script_file: /home/saj/barbeque-alpha/BarBeQuE/main.nf
+launchDir: /home/saj/barbeque-alpha/BarBeQuE
+user: saj
+Pipeline script hash ID: c70922636e93825796adb1adf5b46015
+manifest: nextflow.config.Manifest@731dbf21
+
+=== Settings ===
+Group: Input/output options
+  input: /home/saj/barbeque-alpha/samplesheet/sample_sheet.tsv
+  outdir: refseq
+  teeliste: /home/saj/barbeque-alpha/BarBeQuE/res/teeliste.tsv
+Group: Generic options
+  install_taxdump: true
+  install_genbank: true
+  dbs: refseq_plastid
+  reference_base: /tmp/barbeque-alpha-check/
+  run_name: ref
+  interactive: true
+  version: 0.6
+Group: Expert options
+  read_length: 150
+  custom_db_filter_pattern: synthetic|artificial|construct|recombinant|transgenic|unverified|low[ ._-]?quality|contaminant|chimeric|misidentified
+  obipcr_mismatches: 0
+  completeness_table: null
+Group: Other parameters
+  midori_version: 271_2026-04-07
+  multiqc_config: /home/saj/barbeque-alpha/BarBeQuE/conf/multiqc_config.yaml
+  multiqc_logo: /home/saj/barbeque-alpha/BarBeQuE/assets/pipelinelogo.png
+Group: Core Nextflow options
+  runName: nasty_angela
+  launchDir: /home/saj/barbeque-alpha/BarBeQuE
+  workDir: /home/saj/barbeque-alpha/BarBeQuE/work
+  projectDir: /home/saj/barbeque-alpha/BarBeQuE
+  userName: saj
+  profile: conda
+  configFiles: /home/saj/barbeque-alpha/BarBeQuE/nextflow.config

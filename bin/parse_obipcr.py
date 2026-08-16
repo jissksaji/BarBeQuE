@@ -6,6 +6,16 @@ import argparse
 import itertools
 from collections import defaultdict
 
+# Expected GC contribution of each IUPAC nucleotide.  Fractional values make
+# GC% meaningful for collapsed/degenerate primers while remaining identical
+# to the usual calculation for unambiguous A/C/G/T sequences.
+IUPAC_GC_FRACTION = {
+    'A': 0.0, 'C': 1.0, 'G': 1.0, 'T': 0.0, 'U': 0.0,
+    'R': 0.5, 'Y': 0.5, 'S': 1.0, 'W': 0.0, 'K': 0.5, 'M': 0.5,
+    'B': 2.0 / 3.0, 'D': 1.0 / 3.0, 'H': 1.0 / 3.0,
+    'V': 2.0 / 3.0, 'N': 0.5,
+}
+
 def parse_fasta_header(header_line):
     """Parses a single OBI ecoPCR fasta header."""
     header_line = header_line.strip()
@@ -40,10 +50,10 @@ def parse_fasta_header(header_line):
     }
 
 def calculate_gc(sequence):
-    """Calculates GC percentage of a sequence."""
+    """Calculate expected GC%, including fractional IUPAC ambiguity."""
     if not sequence: return "0.0"
     seq_upper = sequence.upper()
-    gc_count = seq_upper.count('G') + seq_upper.count('C')
+    gc_count = sum(IUPAC_GC_FRACTION.get(base, 0.0) for base in seq_upper)
     return str(round((gc_count / len(sequence)) * 100, 2))
 
 def calculate_tm(sequence):
@@ -212,9 +222,12 @@ def process_obipcr(input_file, output_file):
             direction = meta.get("direction", "")
             fw_errors = meta.get("forward_error", 0)
             rv_errors = meta.get("reverse_error", 0)
-            fw_primer = meta.get("forward_primer", "")
+            # obipcr echoes the primer exactly as it was given, so it still carries the
+            # '#' 3'-clamp markers added by --obipcr_fixed_3prime. Strip them, otherwise
+            # they shift every position against the match and corrupt the primer metrics.
+            fw_primer = meta.get("forward_primer", "").replace("#", "")
             fw_match = meta.get("forward_match", "")
-            rv_primer = meta.get("reverse_primer", "")
+            rv_primer = meta.get("reverse_primer", "").replace("#", "")
             rv_match = meta.get("reverse_match", "")
 
             fw_mm_primer, fw_mm_genome, fw_mm_3prime, fw_mm_severity = find_mismatches(fw_primer, fw_match, start_pos, is_reverse=False)

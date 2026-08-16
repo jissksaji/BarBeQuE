@@ -7,3 +7,6 @@ dependencies:
   - streamlit
   - pandas
   - plotly
+  - scipy
+  - matplotlib
+  - venn

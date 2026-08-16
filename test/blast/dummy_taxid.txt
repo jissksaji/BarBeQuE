@@ -1,0 +1,2 @@
+dummy_seq_1 9606
+dummy_seq_2 9606
