@@ -25,8 +25,8 @@ process VSEARCH_CLUSTER_FAST {
     """
     vsearch --cluster_fast ${fa} \
     --threads ${task.cpus} \
-    --id 0.97 \
-    --uc ${prefix}.cluster.uc ${args}
+    ${args} \
+    --uc ${prefix}.cluster.uc
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -10,15 +10,24 @@ Normal benchmarking requires exactly one primer source:
 
 Do not combine `--input` and `--primer_set`.
 
-## Directory Input Fails
+## FASTA Input Fails
 
-When `--input` is a directory, provide global amplicon bounds:
+When `--input` is a primer FASTA, or a directory of them, provide global amplicon bounds:
 
 ```bash
 --primer_min 100 --primer_max 500
 ```
 
-The directory must contain `.fa`, `.fasta`, or `.fna` files.
+A directory must contain `.fa`, `.fasta`, or `.fna` files; everything else in it is ignored.
+
+If a FASTA is rejected, the error names every unusable file at once and nothing is run. The
+causes are: no FASTA records in the file, a record with an empty sequence, a non-nucleotide
+character in a sequence, a prefix missing its forward or reverse primer, or a record with no
+`fwd`/`rev` token in a file that is not a plain two-record pair.
+
+A warning that a prefix "could not be collapsed" is not a failure - it means that prefix's
+variants have different lengths, so each forward/reverse combination is being benchmarked as its
+own primer set. Check `primers/` to see exactly what was run.
 
 ## Accession Taxonomy Mapping Is Missing
 

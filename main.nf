@@ -18,7 +18,6 @@ git@github.com:bio-raum/barbeque.git
 params.version = workflow.manifest.version
 
 include { BARBEQUE } from './workflows/barbeque'
-include { HIERARCHICAL_CLUSTERING_WORKFLOW } from './workflows/hierarchical_clustering'
 include { BUILD_REFERENCES }    from './workflows/build_references'
 include { PIPELINE_COMPLETION } from './subworkflows/pipeline_completion'
 include { DATABASE } from './subworkflows/database'
@@ -48,8 +47,6 @@ workflow {
 
   if (params.build_references) {
       BUILD_REFERENCES()
-  } else if (params.hierarchical_clustering) {
-      HIERARCHICAL_CLUSTERING_WORKFLOW()
   } else {
       DATABASE()
       BARBEQUE(DATABASE.out.db, DATABASE.out.versions)

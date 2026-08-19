@@ -38,21 +38,6 @@ class WorkflowPipeline {
             println(JsonOutput.prettyPrint(JsonOutput.toJson(catalog)))
             System.exit(1)
         }
-        if (params.hierarchical_clustering) {
-            if (!params.custom_db) {
-                log.info 'Standalone hierarchical clustering requires --custom_db <fasta>'
-                System.exit(1)
-            }
-            if (params.dbs || params.input || params.primer_set) {
-                log.info 'Standalone hierarchical clustering uses --custom_db directly; do not provide --dbs, --input, or --primer_set'
-                System.exit(1)
-            }
-            if (!params.reference_base && (!params.taxdump || !params.accession_taxonomy)) {
-                log.info 'Standalone hierarchical clustering needs taxonomy inputs: provide --reference_base, or provide both --taxdump and --accession_taxonomy'
-                System.exit(1)
-            }
-            return
-        }
         if (params.dbs && !params.run_name) {
             log.info 'Must provide a run_name (--run_name)'
             System.exit(1)
@@ -65,14 +50,34 @@ class WorkflowPipeline {
             log.info "Pipeline requires a sample sheet / primer FASTA directory (--input) or a named primer set (--primer_set) as input"
             System.exit(1)
         }
-        if (params.input) {
-            def input_path = new File(params.input.toString())
-            if (input_path.isDirectory() && (!params.primer_min || !params.primer_max)) {
-                log.info "When --input is a primer FASTA directory, provide global amplicon bounds with --primer_min and --primer_max"
-                System.exit(1)
-            }
+        if (params.input && isFastaInput(params.input) && (!params.primer_min || !params.primer_max)) {
+            log.info "When --input is a primer FASTA, or a directory of them, provide global amplicon bounds with --primer_min and --primer_max"
+            System.exit(1)
         }
 
+    }
+
+    //
+    // Is --input primer FASTA (a directory of them, or a single FASTA file), rather than a samplesheet?
+    // Decided by content rather than by file extension, so a samplesheet is never parsed as a FASTA
+    // (or the other way round) just because of how it was named.
+    //
+    public static boolean isFastaInput(input) {
+        def path = new File(input.toString())
+        if (path.isDirectory()) {
+            return true
+        }
+
+        def first_line = null
+        path.withReader { reader ->
+            def line
+            while (first_line == null && (line = reader.readLine()) != null) {
+                if (line.trim()) {
+                    first_line = line.trim()
+                }
+            }
+        }
+        return first_line != null && first_line.startsWith('>')
     }
 
 }

@@ -15,7 +15,6 @@ BarBeQuE is a Nextflow DSL2 workflow. Process-level software is declared in the 
 | Tool | Use | Citation / DOI |
 | --- | --- | --- |
 | OBITools / OBITools4 | Default in-silico PCR engine (`obipcr`) | Boyer et al. 2016, Molecular Ecology Resources, DOI: [10.1111/1755-0998.12428](https://doi.org/10.1111/1755-0998.12428) |
-| cutadapt | Alternative in-silico PCR engine | Martin 2011, EMBnet.journal, DOI: [10.14806/ej.17.1.200](https://doi.org/10.14806/ej.17.1.200) |
 | VSEARCH | Dereplication and clustering | Rognes et al. 2016, PeerJ, DOI: [10.7717/peerj.2584](https://doi.org/10.7717/peerj.2584) |
 | SeqKit | Sequence summaries and FASTA filtering | Shen et al. 2016, PLOS ONE, DOI: [10.1371/journal.pone.0163962](https://doi.org/10.1371/journal.pone.0163962) |
 | SAMtools | FASTA indexing and sequence utilities | Li et al. 2009, Bioinformatics, DOI: [10.1093/bioinformatics/btp352](https://doi.org/10.1093/bioinformatics/btp352) |
@@ -36,7 +35,6 @@ BarBeQuE is a Nextflow DSL2 workflow. Process-level software is declared in the 
 | Biopython | FASTA parsing/writing in helper scripts | Cock et al. 2009, Bioinformatics, DOI: [10.1093/bioinformatics/btp163](https://doi.org/10.1093/bioinformatics/btp163) |
 | pandas | Tabular data handling | The pandas development team 2020, DOI: [10.5281/zenodo.3509134](https://doi.org/10.5281/zenodo.3509134); McKinney 2010, DOI: [10.25080/Majora-92bf1922-00a](https://doi.org/10.25080/Majora-92bf1922-00a) |
 | NumPy | Numerical arrays | Harris et al. 2020, Nature, DOI: [10.1038/s41586-020-2649-2](https://doi.org/10.1038/s41586-020-2649-2) |
-| SciPy | Hierarchical clustering and scientific routines | Virtanen et al. 2020, Nature Methods, DOI: [10.1038/s41592-019-0686-2](https://doi.org/10.1038/s41592-019-0686-2) |
 | Plotly | Dashboard/report plotting | No single formal DOI used here. |
 | Streamlit | Interactive dashboard | No single formal DOI used here. |
 | taxidTools | Python taxonomy helper | No formal DOI identified; cite the package repository if needed. |

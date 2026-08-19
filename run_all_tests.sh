@@ -10,11 +10,10 @@ echo "==================================="
 python3 -m unittest discover -s tests -p 'test*.py' -v
 
 modules=(
+    "accession_blocklist"
     "blast"
-    "blocklist_filter"
     "cat_fastq"
     "custom"
-    "cutadapt"
     "db_distribution"
     "download"
     "fastp"
@@ -24,9 +23,9 @@ modules=(
     "multiqc"
     "obipcr"
     "parse_obipcr"
+    "parse_primers"
     "primer_disambiguate"
     "samtools"
-    "seqkit"
     "streamlit"
     "taxonkit"
     "untar"

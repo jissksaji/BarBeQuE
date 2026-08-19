@@ -17,13 +17,14 @@ process CLUSTER_CONSENSUS {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
+    def args = task.ext.args ?: ''
     """
     set -euo pipefail
 
     python3 ${moduleDir}/cluster_consensus.py \\
         --input ${cluster_taxonomy} \\
         --taxdump ${taxdump} \\
-        --output ${prefix}.cluster_consensus.tsv
+        --output ${prefix}.cluster_consensus.tsv ${args}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

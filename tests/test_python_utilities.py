@@ -6,7 +6,7 @@ import sys
 import tempfile
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -90,6 +90,13 @@ class TestParseObipcr(unittest.TestCase):
         self.assertTrue(p.is_iupac_match("Y", "C"))
         self.assertTrue(p.is_iupac_match("N", "G"))
         self.assertFalse(p.is_iupac_match("R", "C"))
+        self.assertFalse(p.is_iupac_match("C", "Y"))
+        self.assertFalse(p.is_iupac_match("N", "N"))
+
+        self.assertEqual(
+            p.mismatch_positions("YCC", "TYC"),
+            ([2], [2]),
+        )
 
         self.assertEqual(
             p.find_mismatches("ACGT", "ACTT", 100, is_reverse=False),
@@ -102,6 +109,10 @@ class TestParseObipcr(unittest.TestCase):
         self.assertEqual(
             p.find_mismatches("ACNT", "ACGT", 100, is_reverse=False),
             ("", "", "", "0.0"),
+        )
+        self.assertEqual(
+            p.find_mismatches("ACGT", "AYGT", 100, is_reverse=False),
+            ("2", "101", "3", "6.0"),
         )
 
     def test_process_obipcr_writes_full_metrics_and_hit_spread(self):
@@ -210,71 +221,248 @@ class TestProcessSampleSheet(unittest.TestCase):
             )
 
 
-class TestCollapsePrimers(unittest.TestCase):
+class ParsePrimersTestCase(unittest.TestCase):
+    """Shared helpers for driving bin/parse_primers.py off temporary FASTA files."""
+
     @classmethod
     def setUpClass(cls):
-        cls.collapse_primers = load_script("collapse_primers")
+        cls.parse_primers = load_script("parse_primers")
 
-    def test_classify_detects_direction_tokens_case_insensitively(self):
-        c = self.collapse_primers
+    def collect(self, files, min_len=100, max_len=500):
+        """Write {name: content} into a temp dir and parse the whole directory."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for name, content in files.items():
+            (Path(tmp.name) / name).write_text(content)
+        paths = self.parse_primers.resolve_inputs(Path(tmp.name))
+        return self.parse_primers.collect_rows(paths, min_len, max_len)
 
-        self.assertEqual(c.classify("primer_FWD_1"), "fwd")
-        self.assertEqual(c.classify("primer reverse 1"), "rev")
-        self.assertIsNone(c.classify("primer1"))
 
-    def test_main_collapses_tagged_fasta(self):
+class TestParsePrimersNaming(ParsePrimersTestCase):
+    def test_single_pair_file_is_named_after_the_file(self):
+        rows, warnings, errors = self.collect({"ITS2.fasta": ">ITS2_fwd\nACGT\n>ITS2_rev\nTGCA\n"})
+
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+        self.assertEqual(rows, [{"primer": "ITS2", "fwd": "ACGT", "rev": "TGCA", "min": 100, "max": 500}])
+
+    def test_two_prefixes_stay_separate_even_when_lengths_match(self):
+        rows, _warnings, errors = self.collect(
+            {"markers.fasta": ">MA_FWD\nAAAA\n>MA_REV\nTTTT\n>POL_FWD\nCCCC\n>POL_REV\nGGGG\n"}
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [(r["primer"], r["fwd"], r["rev"]) for r in rows],
+            [("markers_MA", "AAAA", "TTTT"), ("markers_POL", "CCCC", "GGGG")],
+        )
+
+    def test_prefix_and_number_combine_when_one_prefix_splits(self):
+        rows, _warnings, errors = self.collect(
+            {
+                "markers.fasta": ">MA_FWD_1\nAAAA\n>MA_FWD_2\nAAAAAA\n>MA_REV\nTTTT\n"
+                ">POL_FWD\nCCCC\n>POL_REV\nGGGG\n"
+            }
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [r["primer"] for r in rows],
+            ["markers_MA_1", "markers_MA_2", "markers_POL"],
+        )
+
+
+class TestParsePrimersCollapsing(ParsePrimersTestCase):
+    def test_same_length_variants_collapse_into_one_degenerate_primer(self):
+        rows, warnings, errors = self.collect({"MA.fasta": ">MA_fwd_1\nACGT\n>MA_fwd_2\nATGT\n>MA_rev\nTGCA\n"})
+
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+        self.assertEqual([(r["primer"], r["fwd"], r["rev"]) for r in rows], [("MA", "AYGT", "TGCA")])
+
+    def test_differing_lengths_split_into_numbered_sets_and_warn(self):
+        rows, warnings, errors = self.collect({"ITS2.fasta": ">ITS2_fwd_1\nAAAA\n>ITS2_fwd_2\nAAAAAA\n>ITS2_rev\nTTTT\n"})
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            [(r["primer"], r["fwd"], r["rev"]) for r in rows],
+            [("ITS2_1", "AAAA", "TTTT"), ("ITS2_2", "AAAAAA", "TTTT")],
+        )
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("ITS2.fasta", warnings[0])
+        self.assertIn("[4, 6]", warnings[0])
+
+    def test_both_directions_splitting_gives_every_combination(self):
+        rows, warnings, _errors = self.collect(
+            {"X.fasta": ">X_fwd_1\nAAAA\n>X_fwd_2\nAAAAAA\n>X_rev_1\nTTTT\n>X_rev_2\nTTTTTT\n"}
+        )
+
+        self.assertEqual(
+            [(r["primer"], r["fwd"], r["rev"]) for r in rows],
+            [
+                ("X_1", "AAAA", "TTTT"),
+                ("X_2", "AAAA", "TTTTTT"),
+                ("X_3", "AAAAAA", "TTTT"),
+                ("X_4", "AAAAAA", "TTTTTT"),
+            ],
+        )
+        self.assertEqual(len(warnings), 1)
+
+    def test_two_record_file_without_direction_tokens_is_fwd_then_rev(self):
+        rows, _warnings, errors = self.collect({"pair.fasta": ">first\nAAAA\n>second\nTTTT\n"})
+
+        self.assertEqual(errors, [])
+        self.assertEqual([(r["primer"], r["fwd"], r["rev"]) for r in rows], [("pair", "AAAA", "TTTT")])
+
+
+class TestParsePrimersRejects(ParsePrimersTestCase):
+    def assert_single_error(self, files, *fragments):
+        rows, _warnings, errors = self.collect(files)
+
+        self.assertEqual(rows, [])
+        self.assertEqual(len(errors), 1)
+        for fragment in fragments:
+            self.assertIn(fragment, errors[0])
+
+    def test_rejects_empty_sequence(self):
+        self.assert_single_error({"bad.fasta": ">bad_fwd\n\n>bad_rev\nTTTT\n"}, "bad.fasta", "bad_fwd", "empty")
+
+    def test_rejects_non_nucleotide_characters(self):
+        self.assert_single_error({"bad.fasta": ">bad_fwd\nACGX\n>bad_rev\nTTTT\n"}, "bad.fasta", "bad_fwd", "X")
+
+    def test_rejects_file_with_no_fasta_records(self):
+        self.assert_single_error({"bad.fasta": "ACGTACGT\n"}, "bad.fasta", "no FASTA records")
+
+    def test_rejects_empty_file(self):
+        self.assert_single_error({"bad.fasta": ""}, "bad.fasta", "no FASTA records")
+
+    def test_rejects_prefix_missing_a_direction(self):
+        self.assert_single_error(
+            {"bad.fasta": ">bad_fwd_1\nAAAA\n>bad_fwd_2\nCCCC\n>bad_fwd_3\nGGGG\n"},
+            "bad.fasta",
+            "3 fwd",
+            "0 rev",
+        )
+
+    def test_rejects_untagged_record_mixed_with_tagged_records(self):
+        self.assert_single_error(
+            {"bad.fasta": ">p_fwd\nAAAA\n>p_rev\nTTTT\n>extra\nGGGG\n"}, "bad.fasta", "extra"
+        )
+
+    def test_collects_errors_from_every_file_before_giving_up(self):
+        rows, _warnings, errors = self.collect(
+            {
+                "good.fasta": ">good_fwd\nAAAA\n>good_rev\nTTTT\n",
+                "bad_one.fasta": ">x_fwd\nACGX\n>x_rev\nTTTT\n",
+                "bad_two.fasta": ">y_fwd\nAAAA\n",
+            }
+        )
+
+        self.assertEqual(rows, [])
+        self.assertEqual(len(errors), 2)
+        self.assertTrue(any("bad_one.fasta" in e for e in errors))
+        self.assertTrue(any("bad_two.fasta" in e for e in errors))
+
+
+class TestParsePrimersInputs(ParsePrimersTestCase):
+    def test_directory_picks_up_fasta_extensions_and_ignores_everything_else(self):
         with tempfile.TemporaryDirectory() as tmp:
-            fasta = Path(tmp) / "primers.fa"
-            out = Path(tmp) / "out.fa"
-            fasta.write_text(">p_forward_a\nACGT\n>p_forward_b\nATGT\n>p_reverse_a\nTGCA\n>p_reverse_b\nTGTA\n")
+            for name in ["a.fasta", "b.fa", "c.fna", "reads.fastq.gz", "notes.txt"]:
+                (Path(tmp) / name).write_text(">p_fwd\nAAAA\n>p_rev\nTTTT\n")
+
+            paths = self.parse_primers.resolve_inputs(Path(tmp))
+
+            self.assertEqual([p.name for p in paths], ["a.fasta", "b.fa", "c.fna"])
+
+    def test_single_fasta_file_is_accepted_directly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fasta = Path(tmp) / "ITS2.fasta"
+            fasta.write_text(">ITS2_fwd\nACGT\n>ITS2_rev\nTGCA\n")
+
+            paths = self.parse_primers.resolve_inputs(fasta)
+            rows, _warnings, errors = self.parse_primers.collect_rows(paths, 100, 500)
+
+            self.assertEqual(paths, [fasta])
+            self.assertEqual(errors, [])
+            self.assertEqual([r["primer"] for r in rows], ["ITS2"])
+
+    def test_directory_without_any_fasta_files_is_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "reads.fastq.gz").write_text("")
+
+            with self.assertRaises(SystemExit):
+                self.parse_primers.resolve_inputs(Path(tmp))
+
+    def test_is_fasta_distinguishes_fasta_from_a_samplesheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fasta = Path(tmp) / "primers.fasta"
+            sheet = Path(tmp) / "sheet.tsv"
+            fasta.write_text("\n\n>p_fwd\nAAAA\n")
+            sheet.write_text("primer\tfwd\trev\tmin\tmax\n")
+
+            self.assertTrue(self.parse_primers.is_fasta(fasta))
+            self.assertFalse(self.parse_primers.is_fasta(sheet))
+
+    def test_amplicon_bounds_are_written_onto_every_row(self):
+        rows, _warnings, errors = self.collect(
+            {"a.fasta": ">a_fwd\nAAAA\n>a_rev\nTTTT\n", "b.fasta": ">b_fwd\nCCCC\n>b_rev\nGGGG\n"},
+            min_len=120,
+            max_len=460,
+        )
+
+        self.assertEqual(errors, [])
+        self.assertEqual([(r["min"], r["max"]) for r in rows], [(120, 460), (120, 460)])
+
+
+class TestParsePrimersMain(ParsePrimersTestCase):
+    def test_main_writes_a_samplesheet_and_a_warnings_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "ITS2.fasta").write_text(">ITS2_fwd_1\nAAAA\n>ITS2_fwd_2\nAAAAAA\n>ITS2_rev\nTTTT\n")
+            out = Path(tmp) / "primers.tsv"
+            warnings = Path(tmp) / "primer_warnings.txt"
 
             with patch.object(
                 sys,
                 "argv",
-                ["collapse_primers.py", "--fasta", str(fasta), "--prefix", "P", "--out", str(out)],
-            ):
-                self.collapse_primers.main()
+                [
+                    "parse_primers.py",
+                    "--input", tmp,
+                    "--min", "100",
+                    "--max", "500",
+                    "--out", str(out),
+                    "--warnings", str(warnings),
+                ],
+            ), redirect_stderr(io.StringIO()):
+                self.parse_primers.main()
 
-            self.assertEqual(out.read_text(), ">P_fwd\nAYGT\n>P_rev\nTGYA\n")
+            self.assertEqual(
+                out.read_text(),
+                "primer\tfwd\trev\tmin\tmax\n"
+                "ITS2_1\tAAAA\tTTTT\t100\t500\n"
+                "ITS2_2\tAAAAAA\tTTTT\t100\t500\n",
+            )
+            self.assertIn("ITS2.fasta", warnings.read_text())
 
-    def test_main_accepts_plain_two_record_fasta_without_collapsing(self):
+    def test_main_exits_and_writes_nothing_when_a_file_is_invalid(self):
         with tempfile.TemporaryDirectory() as tmp:
-            fasta = Path(tmp) / "primers.fa"
-            out = Path(tmp) / "out.fa"
-            fasta.write_text(">first\nAAAA\n>second\nTTTT\n")
+            (Path(tmp) / "bad.fasta").write_text(">bad_fwd\nACGX\n>bad_rev\nTTTT\n")
+            out = Path(tmp) / "primers.tsv"
 
             with patch.object(
                 sys,
                 "argv",
-                ["collapse_primers.py", "--fasta", str(fasta), "--prefix", "P", "--out", str(out)],
+                ["parse_primers.py", "--input", tmp, "--min", "100", "--max", "500", "--out", str(out)],
             ):
-                self.collapse_primers.main()
+                with self.assertRaises(SystemExit):
+                    self.parse_primers.main()
 
-            self.assertEqual(out.read_text(), ">P_fwd\nAAAA\n>P_rev\nTTTT\n")
-
-    def test_main_rejects_ambiguous_or_unequal_primer_sets(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            ambiguous = Path(tmp) / "ambiguous.fa"
-            unequal = Path(tmp) / "unequal.fa"
-            out = Path(tmp) / "out.fa"
-            ambiguous.write_text(">one\nAAAA\n>two\nTTTT\n>three\nCCCC\n")
-            unequal.write_text(">one_fwd\nAAAA\n>two_fwd\nAAA\n>one_rev\nTTTT\n")
-
-            for fasta in [ambiguous, unequal]:
-                with self.subTest(fasta=fasta.name), patch.object(
-                    sys,
-                    "argv",
-                    ["collapse_primers.py", "--fasta", str(fasta), "--prefix", "P", "--out", str(out)],
-                ):
-                    with self.assertRaises(SystemExit):
-                        self.collapse_primers.main()
+            self.assertFalse(out.exists())
 
 
 class TestTaxidAndAccessionHelpers(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.taxid_filter = load_script("taxid_db_filter", {"Bio": fake_bio_module()})
-        cls.accession_filter = load_script("filter_accessions", {"Bio": fake_bio_module()})
 
     def test_taxid_db_filter_loads_requested_taxids_and_matching_accessions(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -289,62 +477,117 @@ class TestTaxidAndAccessionHelpers(unittest.TestCase):
         self.assertEqual(keep_taxids, {"111", "222", "333"})
         self.assertEqual(accessions, {"A1", "A3", "AY846379"})
 
-    def test_filter_accessions_ignores_comments_and_strips_versions(self):
-        with tempfile.NamedTemporaryFile("w+", delete=False) as handle:
-            handle.write("# comment\nMK123456.1\n\nAB2\n")
+
+class TestAccessionBlocklist(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.accession_filter = load_script("filter_accession_blocklist")
+
+    def test_loads_comments_and_normalizes_accession_versions(self):
+        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".txt") as handle:
+            handle.write(
+                "# accessions to ignore\n"
+                "mk123456.1  # versioned and lower-case\n"
+                "\n"
+                "AY846379.1.1791\n"
+                "MK123456\n"
+            )
             path = handle.name
         try:
-            self.assertEqual(self.accession_filter.load_exclusions(path), {"MK123456", "AB2"})
+            accessions = self.accession_filter.load_accession_blocklist(path)
         finally:
             os.unlink(path)
 
+        self.assertEqual(accessions, {"MK123456", "AY846379"})
 
-class TestBlocklistFilter(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.blocklist_filter = load_script("filter_blocklist")
-
-    def test_filters_fasta_from_foodme_taxids_and_writes_summary(self):
+    def test_filters_parsed_tsv_and_fasta_and_writes_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            blocklist = tmp / "blocklist.txt"
-            mapping = tmp / "accession_taxid.tsv"
-            fasta = tmp / "database.fasta"
-            output = tmp / "filtered.fasta"
+            blocklist = tmp / "accession_blocklist.txt"
+            fasta = tmp / "amplicons.fasta"
+            parsed = tmp / "parsed.tsv"
+            fasta_output = tmp / "filtered.fasta"
+            tsv_output = tmp / "filtered.tsv"
             summary = tmp / "summary.tsv"
 
-            blocklist.write_text("# FooDMe2 blocklist\n111 # unwanted\n333\n")
-            mapping.write_text(
-                "accession\taccession.version\ttaxid\tgi\n"
-                "A1\tA1.1\t111\t0\n"
-                "A2\tA2.1\t222\t0\n"
-                "NOT_IN_FASTA\tNOT_IN_FASTA.1\t111\t0\n"
-                "A3.5\t333\n"
-            )
+            blocklist.write_text("# remove these\nA1\na3.1\nNOT_PRESENT\n")
             fasta.write_text(
-                ">A1.1 blocked four-column mapping\nAAAA\n"
+                ">A1.1 blocked by base accession\nAAAA\n"
                 ">A2.1 kept\nCC\nCC\n"
-                ">A3.5 blocked two-column mapping\nGGGG\n"
+                ">A3.5 blocked case-insensitively\nGGGG\n"
+            )
+            parsed.write_text(
+                "Sequence_ID\tAmplicon_Length\n"
+                "A1.1\t4\n"
+                "A2.1\t4\n"
+                "A3.5\t4\n"
+                "A3.5\t5\n"
             )
 
-            blocked_taxids = self.blocklist_filter.load_blocked_taxids(blocklist)
-            database_accessions = self.blocklist_filter.load_fasta_accessions(fasta)
-            blocked_accessions = self.blocklist_filter.load_blocked_accessions(
-                mapping, blocked_taxids, database_accessions
+            blocked = self.accession_filter.load_accession_blocklist(blocklist)
+            fasta_total, fasta_removed, fasta_matched = (
+                self.accession_filter.filter_fasta(fasta, fasta_output, blocked)
             )
-            total, removed = self.blocklist_filter.filter_fasta(
-                fasta, output, blocked_accessions
+            tsv_total, tsv_removed, tsv_matched = self.accession_filter.filter_tsv(
+                parsed, tsv_output, blocked
             )
-            self.blocklist_filter.write_summary(
-                summary, total, removed, blocked_taxids, blocked_accessions
+            self.accession_filter.write_summary(
+                summary,
+                blocked,
+                (fasta_total, fasta_removed),
+                (tsv_total, tsv_removed),
+                fasta_matched | tsv_matched,
             )
 
-            self.assertEqual(blocked_taxids, {"111", "333"})
-            self.assertEqual(database_accessions, {"A1", "A2", "A3"})
-            self.assertEqual(blocked_accessions, {"A1", "A3"})
-            self.assertEqual(output.read_text(), ">A2.1 kept\nCC\nCC\n")
-            self.assertIn("kept_records\t1", summary.read_text())
-            self.assertIn("removed_records\t2", summary.read_text())
+            self.assertEqual(fasta_output.read_text(), ">A2.1 kept\nCC\nCC\n")
+            self.assertEqual(
+                tsv_output.read_text(),
+                "Sequence_ID\tAmplicon_Length\nA2.1\t4\n",
+            )
+            summary_text = summary.read_text()
+            self.assertIn("listed_accessions\t3", summary_text)
+            self.assertIn("matched_accessions\t2", summary_text)
+            self.assertIn("unmatched_accessions\t1", summary_text)
+            self.assertIn("fasta_removed_records\t2", summary_text)
+            self.assertIn("parsed_removed_rows\t3", summary_text)
+
+    def test_main_rejects_an_empty_accession_blocklist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            blocklist = tmp / "accession_blocklist.txt"
+            fasta = tmp / "amplicons.fasta"
+            parsed = tmp / "parsed.tsv"
+            blocklist.write_text("# no accessions\n\n")
+            fasta.write_text(">A1.1\nAAAA\n")
+            parsed.write_text("Sequence_ID\tAmplicon_Length\nA1.1\t4\n")
+
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "filter_accession_blocklist.py",
+                    "--fasta", str(fasta),
+                    "--tsv", str(parsed),
+                    "--accession-blocklist", str(blocklist),
+                    "--fasta-output", str(tmp / "out.fasta"),
+                    "--tsv-output", str(tmp / "out.tsv"),
+                    "--summary", str(tmp / "summary.tsv"),
+                ],
+            ):
+                with self.assertRaises(SystemExit):
+                    self.accession_filter.main()
+
+    def test_rejects_a_parsed_table_without_sequence_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            parsed = tmp / "parsed.tsv"
+            parsed.write_text("accession\tvalue\nA1\t4\n")
+            with self.assertRaisesRegex(ValueError, "Sequence_ID"):
+                self.accession_filter.filter_tsv(
+                    parsed,
+                    tmp / "out.tsv",
+                    {"A1"},
+                )
 
 
 class TestDbDistribution(unittest.TestCase):

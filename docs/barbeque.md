@@ -8,16 +8,22 @@ Primer input is one of:
 
 - `--primer_set`: named primer sets resolved from the FooDMe2 catalog.
 - `--input <samplesheet.tsv>`: a TSV with `primer`, `fwd`, `rev`, `min`, and `max` columns.
-- `--input <directory>`: `.fa`, `.fasta`, or `.fna` primer FASTAs. Directory mode requires `--primer_min` and `--primer_max`.
+- `--input <primers.fasta>` or `--input <directory>`: one `.fa`/`.fasta`/`.fna` primer FASTA, or a directory of them. Requires `--primer_min` and `--primer_max`.
+
+A file input is read as a FASTA or as a samplesheet based on its first non-blank line, not its
+extension (`WorkflowPipeline.isFastaInput`). FASTA input - and every `--primer_set` download - is
+converted to a samplesheet by `modules/parse_primers` first, so all three routes reach `INPUT_CHECK`
+in the same shape and share one validation and staging step.
+
+See [Primer Input](primer_input.md) for the parsing rules and set naming.
 
 Database input is one of:
 
 - `--dbs`: comma-separated installed database ids from `conf/resources.config`.
 - `--custom_db`: a user-provided FASTA.
 
-Before primer benchmarking, `DATABASE` can restrict records with `--taxid`,
-remove records listed by FooDMe2 with `--blocklist`, and apply header/length
-cleaning with `--custom_db_filter`.
+Before primer benchmarking, `DATABASE` can restrict records with `--taxid` and
+apply header/length cleaning with `--custom_db_filter`.
 
 Taxonomy input is resolved from:
 
@@ -28,28 +34,28 @@ Taxonomy input is resolved from:
 
 1. Resolve primers into a common structure: primer id, forward primer, reverse primer, minimum amplicon length, maximum amplicon length.
 2. Combine every primer with every selected database.
-3. Run in-silico PCR with `--insilico_tool obipcr` or `--insilico_tool cutadapt`.
+3. Run in-silico PCR with `--insilico_tool obipcr`.
 4. Parse raw OBI output when `obipcr` is used.
-5. Drop primer/database pairs with no amplicons from downstream analysis.
-6. Optionally apply `--mask` to mimic single-end or paired-end read coverage.
-7. Write amplicon length summaries.
-8. Build accession-to-taxid tables once per database.
-9. Optionally run advisory species-divergence screening with `--screen_species_divergence`.
-10. Optionally remove curated bad accessions with `--exclude_accessions`.
-11. Cluster amplicons with `vsearch --cluster_fast` using `--cluster_id`.
-12. Parse `.uc` cluster assignments.
-13. Join clustered accessions to taxids.
-14. Calculate consensus taxonomy per cluster.
-15. Summarize database taxonomic distribution.
-16. Optionally write completeness tables with `--completeness_table`.
-17. Optionally run target-taxon coverage with `--taxon`.
-18. Build one MultiQC report per primer/database combination.
+5. Optionally remove accessions listed by `--accession_blocklist` from both parsed results and amplicon FASTA.
+6. Drop primer/database pairs with no retained amplicons from downstream analysis.
+7. Optionally apply `--mask` to mimic single-end or paired-end read coverage.
+8. Write amplicon length summaries.
+9. Build accession-to-taxid tables once per database.
+10. Cluster amplicons with `vsearch --cluster_fast` using `--cluster_id`.
+11. Parse `.uc` cluster assignments.
+12. Join clustered accessions to taxids.
+13. Calculate consensus taxonomy per cluster.
+14. Summarize database taxonomic distribution.
+15. Optionally write completeness tables with `--completeness_table`.
+16. Optionally run target-taxon coverage with `--taxon`.
+17. Build one MultiQC report per primer/database combination.
 
-## Advisory Screening vs Filtering
+## Excluding Unwanted Accessions
 
-`--screen_species_divergence` reports candidate misannotations. It does not change clustering input.
-
-`--exclude_accessions <file>` changes clustering input. Use this after reviewing divergence reports. The file is plain text, one accession per line, with optional `#` comments.
+`--accession_blocklist` is applied immediately after OBI-PCR parsing. Matching
+accessions are removed from the parsed TSV and amplicon FASTA before any masking,
+length profiling, clustering, taxonomy assignment, or reporting. See
+[usage.md](usage.md).
 
 ## Interactive Results
 

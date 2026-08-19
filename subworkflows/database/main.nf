@@ -3,7 +3,6 @@ Include Modules
 */
 include { CUSTOM_DB_FILTER } from './../../modules/seqkit/custom_db_filter'
 include { TAXID_DB_FILTER } from './../../modules/helper/taxid_db_filter'
-include { BLOCKLIST_FILTER } from './../../modules/helper/blocklist_filter'
 
 def has_fasta_header(db) {
     def first_record = null
@@ -48,9 +47,9 @@ workflow DATABASE {
     }
     ch_dbs = channel.fromList(these_dbs)
 
-    // Both taxonomy filters need an accession-to-taxid mapping. Resolve it once
-    // here because DATABASE runs before the main BARBEQUE workflow.
-    if (params.taxid || params.blocklist) {
+    // Taxon filtering needs an accession-to-taxid mapping. Resolve it here because
+    // DATABASE runs before the main BARBEQUE workflow.
+    if (params.taxid) {
         def accession_file = params.accession_taxonomy
         if (!accession_file && params.reference_base) {
             def taxonomy_dir = "${params.reference_base}/barbeque/${params.reference_version}/taxonomy"
@@ -65,7 +64,7 @@ workflow DATABASE {
             accession_file = files("${taxdump_path}/*{accession2taxid,genbank2taxid,nucl_}*").find()
         }
         if (!accession_file) {
-            log.error("--taxid and --blocklist require an accession-to-taxid mapping - provide --accession_taxonomy <file>, or rebuild the taxonomy references")
+            log.error("--taxid requires an accession-to-taxid mapping - provide --accession_taxonomy <file>, or rebuild the taxonomy references")
             System.exit(1)
         }
         ch_accession_taxonomy = channel.value(
@@ -89,17 +88,6 @@ workflow DATABASE {
         ch_dbs = TAXID_DB_FILTER.out.fasta
     }
 
-    // Optional FooDMe2 blocklist. The source is pinned in BlocklistCatalog.groovy,
-    // just like named primer sources are pinned in PrimerCatalog.groovy.
-    if (params.blocklist) {
-        ch_blocklist = channel.value(
-            file(BlocklistCatalog.url(), checkIfExists: true)
-        )
-        BLOCKLIST_FILTER(ch_dbs, ch_accession_taxonomy, ch_blocklist)
-        ch_versions = ch_versions.mix(BLOCKLIST_FILTER.out.versions)
-        ch_dbs = BLOCKLIST_FILTER.out.fasta
-    }
-
     // filter the db, re-using a cached filtered copy from a previous run if present
     if (params.custom_db_filter) {
         ch_dbs
@@ -107,7 +95,7 @@ workflow DATABASE {
                 // The cache is keyed only by meta.id, so taxonomy-filtered runs must never
                 // read (or clobber) the cache of the whole, unfiltered database.
                 def cached_db = params.reference_base ? file("${params.reference_base}/barbeque/${params.reference_version}/filtered/${meta.id}/${meta.id}.cleaned.fasta") : null
-                cached: !params.taxid && !params.blocklist && cached_db?.exists() && has_fasta_header(cached_db)
+                cached: !params.taxid && cached_db?.exists() && has_fasta_header(cached_db)
                     return tuple(meta, cached_db)
                 uncached: true
                     return tuple(meta, db)

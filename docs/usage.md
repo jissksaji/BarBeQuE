@@ -33,7 +33,10 @@ Column names must be:
 - `min`
 - `max`
 
-### Primer FASTA Directory
+### Primer FASTA
+
+`--input` accepts a single `.fa`/`.fasta`/`.fna` file or a directory of them. Both require global
+amplicon bounds, since a FASTA carries no length information:
 
 ```bash
 nextflow run bio-raum/BarBeQuE \
@@ -46,7 +49,13 @@ nextflow run bio-raum/BarBeQuE \
   --run_name fasta_primer_test
 ```
 
-Each `.fa`, `.fasta`, or `.fna` file is treated as one primer set. Headers with `fwd`, `forward`, `rev`, or `reverse` are collapsed by direction into consensus primers. A plain two-record FASTA without direction labels is treated as forward then reverse.
+Each file becomes one or more primer sets, named after the filename. Records are grouped by the
+prefix of their header, same-length variants of a primer are collapsed into one IUPAC-degenerate
+sequence, and everything is validated before the run starts. The generated samplesheet is published
+to `primers/` so you can check exactly what was benchmarked.
+
+See [Primer Input](primer_input.md) for the full rules: prefix grouping, collapsing and splitting,
+set naming, and what makes a file invalid.
 
 ### Named Primer Sets
 
@@ -108,20 +117,7 @@ Restrict a selected database to a taxon and its descendants before analysis:
 --taxid 9606
 ```
 
-Remove records assigned to taxids in FooDMe2's built-in blocklist:
-
-```bash
---blocklist
-```
-
-This option is off by default. When enabled, BarBeQuE downloads the blocklist
-from a pinned FooDMe2 revision, filters each selected FASTA before in-silico
-PCR, and writes the filtered database and removal counts to
-`blocklist_filtered/`. An accession-to-taxid mapping is required.
-
 ## In-Silico PCR Options
-
-Default:
 
 ```bash
 --insilico_tool obipcr
@@ -136,20 +132,20 @@ It is applied by appending `#` to those bases in the primer handed to obipcr,
 e.g. `GGGCAATCCTGAGCCAA` becomes `GGGCAATCCTGAGCC#A#A#`. Set it to `0` to allow
 mismatches anywhere in the primer.
 
-Alternative:
-
-```bash
---insilico_tool cutadapt
---cutadapt_mismatches 2
-```
-
 ## Clustering Options
 
 ```bash
 --cluster_id 0.97
+--consensus_fraction 0.8
 ```
 
-This controls the identity threshold used by `vsearch --cluster_fast`.
+`--cluster_id` controls the identity threshold passed to `vsearch --cluster_fast`
+as `--id`. It accepts a value from `0.0` to `1.0` and defaults to `0.97`; provide
+another value on the Nextflow command line to override it for a run.
+`--consensus_fraction` controls the minimum fraction of taxonomically assigned
+accessions in a cluster that must support a taxon. It must be greater than `0.5`
+and at most `1.0`. The default, `1.0`, is a strict lowest-common-ancestor call;
+lower values allow a supported majority assignment despite minority outliers.
 
 ## Masking
 
@@ -163,24 +159,26 @@ For single-end data:
 --mask --single_end --read_length 400
 ```
 
-## Divergence Screening And Exclusion
-
-Advisory screening:
+## Excluding Unwanted Accessions
 
 ```bash
---screen_species_divergence \
---species_divergence_id 0.99 \
---species_hclust_method average \
---species_hclust_max_seqs 2000
+--accession_blocklist unwanted_accessions.txt
 ```
 
-Curated filtering before clustering:
+The file holds one accession per line. Blank lines and text after `#` are
+ignored. Matching is case- and version-insensitive, so either a base or
+versioned accession can be supplied:
 
-```bash
---exclude_accessions bad_accessions.txt
+```text
+# misannotated records
+MK123456
+AY846379.1
 ```
 
-`bad_accessions.txt` contains one accession per line. Blank lines and lines starting with `#` are ignored. Matching is version-insensitive.
+Filtering happens immediately after OBI-PCR parsing. Matching rows are removed
+from the parsed TSV and the amplicon FASTA, so they cannot reach masking,
+amplicon summaries, clustering, taxonomy, consensus, or reports. Audit counts
+are written to `accession_blocklist/*.accession_blocklist_summary.tsv`.
 
 ## Target-Taxon Reports
 
@@ -203,17 +201,3 @@ This adds database completeness summaries using the value supplied to `--taxon`.
 ```
 
 This launches the Streamlit dashboard after the analysis finishes.
-
-## Standalone Hierarchical Clustering
-
-```bash
-nextflow run bio-raum/BarBeQuE \
-  -profile singularity \
-  --hierarchical_clustering \
-  --custom_db custom.fasta \
-  --reference_base /path/to/references \
-  --run_name custom_screen \
-  --outdir results_hclust
-```
-
-This mode screens a custom FASTA directly. Do not provide `--input`, `--primer_set`, or `--dbs`.

@@ -17,8 +17,8 @@
         "input": {
           "type": "string",
           "exists": true,
-          "description": "Path to a tab-separated primer samplesheet, or to a directory of primer FASTA files. Alternative to --primer_set (mutually exclusive) - required unless --primer_set or --build_references is given.",
-          "help_text": "Provide either a TSV samplesheet with primer, fwd, rev, min and max columns, or a directory containing .fa/.fasta/.fna primer FASTA files. Directory input requires --primer_min and --primer_max.",
+          "description": "Path to a tab-separated primer samplesheet, a primer FASTA, or a directory of primer FASTA files. Alternative to --primer_set (mutually exclusive) - required unless --primer_set or --build_references is given.",
+          "help_text": "Provide a TSV samplesheet with primer, fwd, rev, min and max columns, a single .fa/.fasta/.fna primer FASTA, or a directory containing them. A file is read as FASTA or samplesheet based on its first non-blank line, not its extension. FASTA input requires --primer_min and --primer_max.",
           "fa_icon": "fas fa-file-csv"
         },
         "outdir": {
@@ -55,11 +55,11 @@
 
         "primer_min": {
           "type": "integer",
-          "description": "Global minimum amplicon length for --input primer FASTA directory mode"
+          "description": "Global minimum amplicon length for --input primer FASTA input"
         },
         "primer_max": {
           "type": "integer",
-          "description": "Global maximum amplicon length for --input primer FASTA directory mode"
+          "description": "Global maximum amplicon length for --input primer FASTA input"
         },
         "genbank_taxid": {
           "type": "integer",
@@ -73,10 +73,11 @@
           "type": "integer",
           "description": "Restrict --dbs/--custom_db to this taxid (and its descendants) before analysis, so only that taxon is analysed/checked"
         },
-        "blocklist": {
-          "type": "boolean",
-          "description": "Remove reference records assigned to taxids in FooDMe2's built-in blocklist before in-silico PCR",
-          "default": false
+        "accession_blocklist": {
+          "type": "string",
+          "format": "file-path",
+          "exists": true,
+          "description": "Path to accessions that should be removed after OBI-PCR parsing and excluded from every downstream analysis. Use one accession per line; blank lines and # comments are ignored, and matching is version-insensitive."
         },
         "list_dbs": {
           "type": "boolean",
@@ -130,7 +131,7 @@
       "properties": {
         "insilico_tool": {
           "type": "string",
-          "description": "Tool used for in-silico PCR (e.g., obipcr or cutadapt)",
+          "description": "Tool used for in-silico PCR (currently only obipcr)",
           "default": "obipcr"
         },
         "mask": {
@@ -154,7 +155,16 @@
         "cluster_id": {
           "type": "number",
           "default": 0.97,
-          "description": "The identity threshold to group barcode sequences by"
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "VSEARCH --cluster_fast identity threshold used to group barcode sequences (set with --cluster_id)"
+        },
+        "consensus_fraction": {
+          "type": "number",
+          "default": 1.0,
+          "exclusiveMinimum": 0.5,
+          "maximum": 1.0,
+          "description": "Minimum fraction of taxonomically assigned accessions in a cluster that must support a consensus assignment"
         },
         "custom_db_filter_pattern": {
           "type": "string",
@@ -183,44 +193,10 @@
           "default": 3,
           "minimum": 0
         },
-        "cutadapt_mismatches": {
-          "type": "integer",
-          "description": "Number of mismatches allowed for cutadapt",
-          "default": 2
-        },
         "custom_db_filter": {
           "type": "boolean",
           "description": "Apply custom DB filtering",
           "default": false
-        },
-        "hierarchical_clustering": {
-          "type": "boolean",
-          "description": "Run the standalone custom DB workflow: optional custom DB filtering, per-species dereplication, and hierarchical clustering",
-          "default": false
-        },
-        "screen_species_divergence": {
-          "type": "boolean",
-          "description": "Run per-species divergence screening (advisory): dereplicate + hierarchically cluster amplicons per species and graph candidate misannotations. Does not change clustering input.",
-          "default": false
-        },
-        "species_divergence_id": {
-          "type": "number",
-          "description": "Intra-species identity threshold; sequences below this identity to the rest of their species are flagged as candidate misannotations",
-          "default": 0.99
-        },
-        "species_hclust_method": {
-          "type": "string",
-          "description": "scipy.cluster.hierarchy linkage method used for intra-species hierarchical clustering",
-          "default": "average"
-        },
-        "species_hclust_max_seqs": {
-          "type": "integer",
-          "description": "Skip hierarchical clustering (mark 'not screened') for species with more than this many sequences",
-          "default": 2000
-        },
-        "exclude_accessions": {
-          "type": "string",
-          "description": "Path to an author-maintained accession exclusion list (one accession per line, # comments allowed). Listed accessions are removed from the amplicons before clustering."
         },
         "completeness_table": {
           "type": "boolean",

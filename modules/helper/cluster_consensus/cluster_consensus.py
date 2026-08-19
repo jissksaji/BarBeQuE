@@ -6,11 +6,34 @@ import argparse
 import taxidTools
 
 
-parser = argparse.ArgumentParser(description="Script options")
-parser.add_argument("--input", help="Path to cluster_taxonomy.tsv from JOIN_ACCESSION_TAXONOMY")
-parser.add_argument("--taxdump", help="Path to the taxdump folder")
-parser.add_argument("--output", help="Path to output table")
-args = parser.parse_args()
+def consensus_fraction(value):
+    value = float(value)
+    if not 0.5 < value <= 1.0:
+        raise argparse.ArgumentTypeError(
+            "consensus fraction must be greater than 0.5 and at most 1.0"
+        )
+    return value
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Assign taxonomy to sequence clusters")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to cluster_taxonomy.tsv from JOIN_ACCESSION_TAXONOMY",
+    )
+    parser.add_argument("--taxdump", required=True, help="Path to the taxdump folder")
+    parser.add_argument("--output", required=True, help="Path to output table")
+    parser.add_argument(
+        "--min-consensus",
+        type=consensus_fraction,
+        default=1.0,
+        help=(
+            "Minimum fraction of valid cluster accessions that must support an "
+            "assignment (default: 1.0, equivalent to strict LCA)"
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def load_taxonomy(taxdump):
@@ -41,7 +64,36 @@ def parse_cluster_taxonomy(input_file):
     return clusters_taxid, rows
 
 
-def main(input_file, taxdump, output):
+def cluster_consensus(tax, taxids, min_consensus):
+    """Return name, taxid, rank, and input-taxon names for one cluster."""
+    unique_taxids = list(dict.fromkeys(taxids))
+    disambiguation = ";".join(
+        name
+        for name in (tax.getName(taxid) for taxid in unique_taxids)
+        if name is not None
+    )
+    valid_taxids = [taxid for taxid in taxids if tax.getName(taxid) is not None]
+
+    if not valid_taxids:
+        return ["Unclassified", "Unknown", "no rank", disambiguation]
+
+    consensus = tax.consensus(
+        valid_taxids,
+        min_consensus=min_consensus,
+        ignore_missing=True,
+    )
+    if consensus is None:
+        return ["Unclassified", "Unknown", "no rank", disambiguation]
+
+    return [
+        consensus.name,
+        str(consensus.taxid),
+        consensus.rank,
+        disambiguation,
+    ]
+
+
+def main(input_file, taxdump, output, min_consensus=1.0):
     tax = load_taxonomy(taxdump)
 
     # Parse input
@@ -50,26 +102,11 @@ def main(input_file, taxdump, output):
     # Get consensus, rank, and disambiguation per cluster
     clusters_cons = {}
     for cluster_id, taxids in clusters_taxid.items():
-        # Get unique taxids and their names for disambiguation
-        unique_taxids = list(dict.fromkeys(taxids))
-        disambiguation = ";".join([name for name in [tax.getName(t) for t in unique_taxids] if name is not None])
-        valid_taxids = [t for t in taxids if tax.getName(t) is not None]
-        
-        if valid_taxids:
-            cons = tax.lca(valid_taxids, ignore_missing=True)
-            clusters_cons[cluster_id] = [
-                cons.name,
-                str(cons.taxid),
-                cons.rank,
-                disambiguation,
-            ]
-        else:
-            clusters_cons[cluster_id] = [
-                "Unclassified",
-                "Unknown",
-                "no rank",
-                disambiguation,
-            ]
+        clusters_cons[cluster_id] = cluster_consensus(
+            tax,
+            taxids,
+            min_consensus,
+        )
 
     # Dump: original row + accession_name + LCA columns appended
     with open(output, 'w') as fo:
@@ -84,8 +121,10 @@ def main(input_file, taxdump, output):
 
 
 if __name__ == "__main__":
+    args = parse_args()
     main(
         args.input,
         args.taxdump,
-        args.output
+        args.output,
+        args.min_consensus,
     )

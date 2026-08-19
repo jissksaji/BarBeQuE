@@ -7,13 +7,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from scipy.cluster.hierarchy import dendrogram
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cluster_pairwise_analysis import (  # noqa: E402
-    build_hierarchy,
     classical_pcoa,
     load_cluster_sequences,
+    order_by_similarity,
 )
 
 
@@ -203,46 +202,14 @@ def analyze_consensus_cluster(
     parsed_modified_time_ns: int,
     cluster_id: int,
     focal_taxid: str,
-    cache_version: int = 2,
+    cache_version: int = 3,
 ):
     metadata, distances = load_cluster_sequences(
         consensus_path, parsed_path, cluster_id, focal_taxid
     )
-    hierarchy, leaves = build_hierarchy(distances)
     coordinates, explained = classical_pcoa(distances)
-    return metadata, distances, hierarchy, leaves, coordinates, explained
-
-
-def make_dendrogram_figure(hierarchy: np.ndarray, labels: list[str]) -> go.Figure:
-    tree = dendrogram(hierarchy, labels=labels, no_plot=True, color_threshold=0)
-    figure = go.Figure()
-    for x_coordinates, y_coordinates in zip(tree["icoord"], tree["dcoord"]):
-        figure.add_trace(
-            go.Scatter(
-                x=x_coordinates,
-                y=y_coordinates,
-                mode="lines",
-                line={"color": "#355f8a", "width": 2},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
-    ordered_labels = tree["ivl"]
-    figure.update_layout(
-        title="Average-linkage hierarchy of unique cluster amplicons",
-        xaxis={
-            "tickmode": "array",
-            "tickvals": [10 * index + 5 for index in range(len(ordered_labels))],
-            "ticktext": ordered_labels,
-            "tickangle": -70,
-            "title": "Unique amplicon (★ contains focal taxid)",
-        },
-        yaxis={"title": "Normalized global edit distance", "rangemode": "tozero"},
-        height=620,
-        margin={"l": 30, "r": 20, "t": 70, "b": 220},
-        plot_bgcolor="white",
-    )
-    return figure
+    order = order_by_similarity(coordinates)
+    return metadata, distances, order, coordinates, explained
 
 
 st.title("Tea List Analysis")
@@ -500,8 +467,7 @@ else:
                 (
                     cluster_metadata,
                     cluster_distances,
-                    cluster_hierarchy,
-                    cluster_leaves,
+                    cluster_order,
                     cluster_coordinates,
                     cluster_explained,
                 ) = analyze_consensus_cluster(
@@ -511,7 +477,7 @@ else:
                     parsed_path.stat().st_mtime_ns,
                     selected_cluster,
                     str(selected_taxon["taxid"]),
-                    2,
+                    3,
                 )
             except (OSError, ValueError, pd.errors.ParserError) as exc:
                 st.error(f"Could not analyze cluster {selected_cluster}: {exc}")
@@ -540,38 +506,30 @@ else:
                         + f"{row.sequence_id} | n={row.record_count} | taxids={row.taxids}"
                         for row in cluster_metadata.itertuples()
                     ]
-                    dendrogram_tab, heatmap_tab, pcoa_tab = st.tabs(
-                        ["Dendrogram", "Distance heatmap", "PCoA"]
+                    st.caption(
+                        "Each row is one unique amplicon: the sequence ID, the number "
+                        "of source records it collapses, and the taxids and accessions "
+                        "it came from."
                     )
-                    with dendrogram_tab:
-                        st.plotly_chart(
-                            make_dendrogram_figure(cluster_hierarchy, plot_labels),
-                            use_container_width=True,
-                        )
-                        st.caption(
-                            "Leaf labels show the unique sequence ID, the number of source "
-                            "records (n), and source taxids. ★ marks a sequence shared "
-                            "with the selected focal taxid. Branch height is sequence distance; "
-                            "lower joins indicate more similar sequences."
-                        )
-                        st.dataframe(
-                            cluster_metadata[
-                                [
-                                    "sequence_id",
-                                    "contains_focal_taxid",
-                                    "record_count",
-                                    "length",
-                                    "taxon_names",
-                                    "taxids",
-                                    "accessions",
-                                ]
-                            ],
-                            use_container_width=True,
-                            hide_index=True,
-                            height=280,
-                        )
+                    st.dataframe(
+                        cluster_metadata[
+                            [
+                                "sequence_id",
+                                "contains_focal_taxid",
+                                "record_count",
+                                "length",
+                                "taxon_names",
+                                "taxids",
+                                "accessions",
+                            ]
+                        ],
+                        use_container_width=True,
+                        hide_index=True,
+                        height=280,
+                    )
+                    heatmap_tab, pcoa_tab = st.tabs(["Distance heatmap", "PCoA"])
                     with heatmap_tab:
-                        ordered_indices = list(cluster_leaves)
+                        ordered_indices = list(cluster_order)
                         ordered_labels = [plot_labels[index] for index in ordered_indices]
                         ordered_distances = cluster_distances[np.ix_(
                             ordered_indices, ordered_indices
@@ -598,6 +556,12 @@ else:
                             margin={"l": 90, "r": 20, "t": 70, "b": 130},
                         )
                         st.plotly_chart(heatmap, use_container_width=True)
+                        st.caption(
+                            "Rows and columns are ordered along the first PCoA axis, so "
+                            "similar sequences sit next to each other and blocks of low "
+                            "distance stand out. ★ marks a sequence shared with the "
+                            "selected focal taxid."
+                        )
                     with pcoa_tab:
                         pcoa_df = cluster_metadata.drop(columns=["sequence"]).copy()
                         pcoa_df["PCoA1"] = cluster_coordinates[:, 0]

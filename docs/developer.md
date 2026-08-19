@@ -21,9 +21,8 @@
 
 - `--list_dbs`
 - `--list_primers`
-- standalone hierarchical clustering requirements
 - mutually exclusive primer input modes
-- required bounds for primer FASTA directory input
+- required bounds for primer FASTA input (single file or directory)
 - `--run_name` requirement when `--dbs` is used
 
 Update this file when adding a user-facing parameter that changes valid run modes.
@@ -46,9 +45,9 @@ Update this file when adding a user-facing parameter that changes valid run mode
 5. Add a small test harness under `test/<module>/main.nf`.
 6. Add Python unit tests when the module wraps logic in `bin/`.
 
-`PrimerCatalog.groovy` and `BlocklistCatalog.groovy` keep remote FooDMe2 assets
-pinned and reproducible. Analysis logic belongs in BarBeQuE modules; upstream
-FooDMe2 workflow processes are not imported.
+`PrimerCatalog.groovy` keeps remote primer assets pinned and reproducible.
+Analysis logic belongs in BarBeQuE modules; upstream workflow processes are not
+imported.
 
 ## Testing
 

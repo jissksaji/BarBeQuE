@@ -3,8 +3,8 @@
 
 The module joins a cluster's accessions to parsed OBI-PCR amplicon sequences,
 collapses exact duplicates, calculates normalized global edit distances, and
-builds an average-linkage (UPGMA) hierarchy. It is importable by Streamlit and
-also provides a small command-line interface that writes reviewable TSV files.
+projects them with classical PCoA. It is importable by Streamlit and also
+provides a small command-line interface that writes reviewable TSV files.
 """
 
 import argparse
@@ -12,8 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.cluster.hierarchy import dendrogram, linkage
-from scipy.spatial.distance import squareform
 
 
 CONSENSUS_COLUMNS = [
@@ -144,13 +142,16 @@ def load_cluster_sequences(
     return metadata, distances
 
 
-def build_hierarchy(distances: np.ndarray) -> tuple[np.ndarray, list[int]]:
-    if len(distances) < 2:
-        return np.empty((0, 4)), [0]
-    condensed = squareform(distances, checks=True)
-    hierarchy = linkage(condensed, method="average", optimal_ordering=True)
-    leaves = dendrogram(hierarchy, no_plot=True)["leaves"]
-    return hierarchy, leaves
+def order_by_similarity(coordinates: np.ndarray) -> list[int]:
+    """Return a display order that keeps similar sequences adjacent.
+
+    Sorting by the first PCoA axis is a cheap seriation: the axis captures the
+    dominant gradient in the distance matrix, so neighbouring sequences end up
+    next to each other and a heatmap ordered this way still shows its blocks.
+    """
+    if len(coordinates) < 2:
+        return list(range(len(coordinates)))
+    return list(np.argsort(coordinates[:, 0]))
 
 
 def classical_pcoa(distances: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -188,16 +189,16 @@ def main() -> None:
         args.focal_taxid,
         args.max_unique,
     )
-    hierarchy, _ = build_hierarchy(distances)
+    coordinates, _ = classical_pcoa(distances)
     metadata.drop(columns=["sequence"]).to_csv(
         f"{args.output_prefix}.metadata.tsv", sep="\t", index=False
     )
     pd.DataFrame(
         distances, index=metadata["sequence_id"], columns=metadata["sequence_id"]
     ).to_csv(f"{args.output_prefix}.distances.tsv", sep="\t")
-    pd.DataFrame(hierarchy, columns=["left", "right", "distance", "members"]).to_csv(
-        f"{args.output_prefix}.linkage.tsv", sep="\t", index=False
-    )
+    pd.DataFrame(
+        coordinates, index=metadata["sequence_id"], columns=["pcoa1", "pcoa2"]
+    ).to_csv(f"{args.output_prefix}.pcoa.tsv", sep="\t")
 
 
 if __name__ == "__main__":

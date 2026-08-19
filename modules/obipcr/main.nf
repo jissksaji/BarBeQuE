@@ -30,9 +30,7 @@ process OBIPCR_INSILICOPCR {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
 
-    def mismatches = params.containsKey('obipcr_mismatches')
-        ? params.obipcr_mismatches as int
-        : params.cutadapt_mismatches as int
+    def mismatches = params.obipcr_mismatches as int
 
     def fixed_3prime = params.containsKey('obipcr_fixed_3prime')
         ? params.obipcr_fixed_3prime as int

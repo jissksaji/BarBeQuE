@@ -3,7 +3,7 @@ Import modules
 */
 include { INPUT_CHECK } from './../modules/input_check'
 include { PRIMER_SET } from './../subworkflows/primer_set'
-include { COLLAPSE_PRIMERS as COLLAPSE_INPUT_PRIMERS } from './../modules/helper/collapse_primers'
+include { PARSE_PRIMERS } from './../modules/parse_primers/main'
 include { MULTIQC } from './../modules/multiqc/main'
 include { CUSTOM_DUMPSOFTWAREVERSIONS } from './../modules/custom/dumpsoftwareversions'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file'
@@ -11,7 +11,6 @@ include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file
 /*
 Helper Modules
 */
-include { COMPUTE_BUFFER } from './../modules/seqkit/compute_buffer'
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
 include { DB_DISTRIBUTION } from './../modules/db_distribution/main.nf'
 include { AMPLICON_LENGTH } from './../modules/seqkit/amplicon_lengths'
@@ -21,15 +20,12 @@ include { SPECIES_REPRESENTATION } from './../modules/helper/species_representat
 include { MASK } from './../modules/mask/main.nf'
 include { PARSE_UC } from './../modules/helper/parse_uc'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy'
-include { FILTER_ACCESSIONS } from './../modules/helper/filter_accessions'
-include { HIERARCHICAL_CLUSTERING } from './../subworkflows/hierarchical_clustering'
+include { ACCESSION_BLOCKLIST } from './../modules/helper/accession_blocklist'
 /*
 Core Modules
 */
-include { CUTADAPT_INSILICOPCR } from './../modules/cutadapt'
 include { OBIPCR_INSILICOPCR } from './../modules/obipcr'
 include { PARSE_OBIPCR } from './../modules/parse_obipcr/main.nf'
-include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
 include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
@@ -79,70 +75,38 @@ workflow BARBEQUE {
 
 
     // Primers come from either a named --primer_set (resolved live from the FooDMe2 catalog),
-    // a hand-written --input samplesheet, or an --input directory of primer FASTAs - mutually exclusive, enforced in
-    // lib/WorkflowPipeline.groovy. All converge on the same [primer, fwd, rev, min, max]
-    // meta shape, so nothing below this point needs to know which path was used.
+    // a hand-written --input samplesheet, a single --input primer FASTA, or an --input directory
+    // of primer FASTAs - mutually exclusive, enforced in lib/WorkflowPipeline.groovy. All converge
+    // on the same [primer, fwd, rev, min, max] meta shape, so nothing below this point needs to
+    // know which path was used.
     if (params.primer_set) {
         PRIMER_SET()
-        ch_primers = PRIMER_SET.out.primers
+        samplesheet = PRIMER_SET.out.samplesheet
         ch_versions = ch_versions.mix(PRIMER_SET.out.versions)
     }
-    else {
-        def input_path = file(params.input, checkIfExists: true)
-        if (input_path.isDirectory()) {
-            ch_primer_fasta = channel.fromPath("${params.input}/*.{fa,fasta,fna}", checkIfExists: true)
-                .map { fasta ->
-                    def primer_id = fasta.baseName.replaceAll(/[\s\/\\:*?"<>|]/, '_')
-                    tuple(
-                        [id: primer_id, min: params.primer_min, max: params.primer_max],
-                        fasta,
-                    )
-                }
-
-            // Collapse each FASTA's fwd/rev-labelled variants into one consensus fwd + rev pair.
-            COLLAPSE_INPUT_PRIMERS(ch_primer_fasta)
-            ch_versions = ch_versions.mix(COLLAPSE_INPUT_PRIMERS.out.versions)
-
-            ch_primers = COLLAPSE_INPUT_PRIMERS.out.fasta.map { meta, fasta ->
-                def seqs = [:]
-                def id = null
-                def seq = new StringBuilder()
-                fasta.eachLine { line ->
-                    if (line.startsWith('>')) {
-                        if (id) {
-                            seqs[id] = seq.toString()
-                        }
-                        id = line.substring(1).trim()
-                        seq = new StringBuilder()
-                    }
-                    else {
-                        seq.append(line.trim())
-                    }
-                }
-                if (id) {
-                    seqs[id] = seq.toString()
-                }
-                [
-                    primer: meta.id,
-                    fwd: seqs["${meta.id}_fwd"],
-                    rev: seqs["${meta.id}_rev"],
-                    min: meta.min,
-                    max: meta.max,
-                ]
-            }
-        }
-        else {
-            samplesheet = channel.fromPath(input_path)
-
-            // Check if the samplesheet is valid
-            INPUT_CHECK(samplesheet)
-
-            // Copy the samplesheet to the results folder
-            STAGE_SAMPLESHEET(samplesheet)
-
-            ch_primers = INPUT_CHECK.out.primers
-        }
+    else if (WorkflowPipeline.isFastaInput(params.input)) {
+        // FASTA input (one file or a folder of them) is converted into the same samplesheet a
+        // user would write by hand, so every route shares the validation and staging below.
+        PARSE_PRIMERS(
+            channel.value([
+                [id: 'primers', min: params.primer_min, max: params.primer_max],
+                file(params.input, checkIfExists: true),
+            ])
+        )
+        ch_versions = ch_versions.mix(PARSE_PRIMERS.out.versions)
+        samplesheet = PARSE_PRIMERS.out.samplesheet.map { _meta, tsv -> tsv }
     }
+    else {
+        samplesheet = channel.fromPath(file(params.input, checkIfExists: true))
+    }
+
+    // Check if the samplesheet is valid
+    INPUT_CHECK(samplesheet)
+
+    // Copy the samplesheet to the results folder
+    STAGE_SAMPLESHEET(samplesheet)
+
+    ch_primers = INPUT_CHECK.out.primers
 
     /*
      Combine each primer set with all requested databases
@@ -168,37 +132,49 @@ workflow BARBEQUE {
 
 
     def insilico_tool = (params.insilico_tool ?: 'obipcr').toLowerCase()
-    if (!(insilico_tool in ['obipcr', 'cutadapt'])) {
-        log.error("Invalid --insilico_tool '${insilico_tool}' - must be 'obipcr' or 'cutadapt'")
+    if (insilico_tool != 'obipcr') {
+        log.error("Invalid --insilico_tool '${insilico_tool}' - must be 'obipcr'")
         System.exit(1)
     }
 
-    if (insilico_tool == 'cutadapt') {
-        // Estimate a read buffer size from the largest sequence in each database
-        COMPUTE_BUFFER(ch_dbs)
-        // Run in-silico PCR with cutadapt to extract amplicons for each primer/database pair
-        CUTADAPT_INSILICOPCR(
-            ch_primers_with_db.map { meta, db -> tuple(meta.db, meta, db) }.combine(
-                COMPUTE_BUFFER.out.buffersize.map { meta, buffersize -> tuple(meta.id, buffersize) },
-                by: 0
-            ).map { _db, meta, db, buffersize -> tuple(meta, db, buffersize) }
+    // Run in-silico PCR with obipcr to extract amplicons for each primer/database pair
+    OBIPCR_INSILICOPCR(
+        ch_primers_with_db
+    )
+    ch_versions = ch_versions.mix(OBIPCR_INSILICOPCR.out.versions)
+
+    // Reformat obipcr's raw output into a standard amplicon FASTA
+    PARSE_OBIPCR(
+        OBIPCR_INSILICOPCR.out.raw_fasta
+    )
+    ch_versions = ch_versions.mix(PARSE_OBIPCR.out.versions)
+
+    // Optionally remove listed accessions after OBI-PCR has been parsed. The filtered
+    // FASTA is the only amplicon channel exposed to masking, length summaries, clustering,
+    // taxonomy, and reports; the paired filtered TSV remains the published parsed result.
+    if (params.accession_blocklist) {
+        // The two processes emit independently. Attach the same scalar pair key
+        // to both channels so join cannot depend on file arrival order or map identity.
+        ch_obipcr_fasta_by_key = OBIPCR_INSILICOPCR.out.fasta.map { meta, fasta ->
+            tuple("${meta.primer}|${meta.db}", meta, fasta)
+        }
+        ch_obipcr_tsv_by_key = PARSE_OBIPCR.out.tsv.map { meta, tsv ->
+            tuple("${meta.primer}|${meta.db}", tsv)
+        }
+        ch_obipcr_with_tsv = ch_obipcr_fasta_by_key
+            .join(ch_obipcr_tsv_by_key)
+            // Drop the temporary join key; downstream modules use the original meta map.
+            .map { _key, meta, fasta, tsv -> tuple(meta, fasta, tsv) }
+
+        ACCESSION_BLOCKLIST(
+            ch_obipcr_with_tsv,
+            channel.value(file(params.accession_blocklist, checkIfExists: true)),
         )
-        ch_versions = ch_versions.mix(COMPUTE_BUFFER.out.versions, CUTADAPT_INSILICOPCR.out.versions)
-        ch_insilico_fasta = CUTADAPT_INSILICOPCR.out.fasta
+        ch_versions = ch_versions.mix(ACCESSION_BLOCKLIST.out.versions)
+        ch_insilico_fasta = ACCESSION_BLOCKLIST.out.fasta
     }
     else {
-        // Run in-silico PCR with obipcr to extract amplicons for each primer/database pair
-        OBIPCR_INSILICOPCR(
-            ch_primers_with_db
-        )
-        ch_versions = ch_versions.mix(OBIPCR_INSILICOPCR.out.versions)
         ch_insilico_fasta = OBIPCR_INSILICOPCR.out.fasta
-
-        // Reformat obipcr's raw output into a standard amplicon FASTA
-        PARSE_OBIPCR(
-            OBIPCR_INSILICOPCR.out.raw_fasta
-        )
-        ch_versions = ch_versions.mix(PARSE_OBIPCR.out.versions)
     }
 
     ch_insilico_fasta
@@ -224,32 +200,11 @@ workflow BARBEQUE {
     multiqc_files = multiqc_files.mix(AMPLICON_LENGTH.out.tsv)
 
     // Map each database's accessions to taxids once per db (expensive full scan of genbank2taxid).
-    // Moved ahead of clustering so amplicon accessions can be resolved to species for the divergence
-    // screen below; still runs on the whole DB, so all downstream consumers are unchanged.
     BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
     ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
 
-    // Advisory per-species divergence screening (hierarchical clustering) - flags candidate
-    // misannotations for review but does not change what gets clustered (see
-    // params.exclude_accessions for the actual filter).
-    if (params.screen_species_divergence) {
-        HIERARCHICAL_CLUSTERING(ch_amplicons, BUILD_DB_TAXIDS.out.accession_taxid, ch_taxdump)
-        ch_versions = ch_versions.mix(HIERARCHICAL_CLUSTERING.out.versions)
-    }
-
-    // Optionally drop author-curated bad accessions before clustering (the only step that changes
-    // clustering input); otherwise cluster the amplicons unchanged.
-    if (params.exclude_accessions) {
-        FILTER_ACCESSIONS(ch_amplicons, file(params.exclude_accessions, checkIfExists: true))
-        ch_to_cluster = FILTER_ACCESSIONS.out.fasta
-        ch_versions = ch_versions.mix(FILTER_ACCESSIONS.out.versions)
-    }
-    else {
-        ch_to_cluster = ch_amplicons
-    }
-
-    // Cluster amplicons into OTUs
-    VSEARCH_CLUSTER_FAST(ch_to_cluster)
+    // Cluster the retained amplicons into OTUs.
+    VSEARCH_CLUSTER_FAST(ch_amplicons)
     ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
 
     // Extract accession-to-cluster assignments from the vsearch .uc file

@@ -1,7 +1,7 @@
 /*
 Include Modules
 */
-include { COLLAPSE_PRIMERS } from './../../modules/helper/collapse_primers'
+include { PARSE_PRIMERS } from './../../modules/parse_primers/main'
 
 workflow PRIMER_SET {
 
@@ -35,42 +35,12 @@ workflow PRIMER_SET {
         }
     ch_primer_fasta = channel.fromList(these_primers)
 
-    // Collapse each set's fwd/rev-labelled variants into one consensus fwd + rev pair
-    COLLAPSE_PRIMERS(ch_primer_fasta)
-    ch_versions = ch_versions.mix(COLLAPSE_PRIMERS.out.versions)
-
-    // Turn the collapsed 2-record (fwd/rev) fasta back into the same meta-map shape
-    // modules/input_check.nf already produces (primer/fwd/rev/min/max), so workflows/barbeque.nf
-    // doesn't need to change anything downstream of it.
-    ch_primers = COLLAPSE_PRIMERS.out.fasta.map { meta, fasta ->
-        def seqs = [:]
-        def id = null
-        def seq = new StringBuilder()
-        fasta.eachLine { line ->
-            if (line.startsWith('>')) {
-                if (id) {
-                    seqs[id] = seq.toString()
-                }
-                id = line.substring(1).trim()
-                seq = new StringBuilder()
-            }
-            else {
-                seq.append(line.trim())
-            }
-        }
-        if (id) {
-            seqs[id] = seq.toString()
-        }
-        [
-            primer: meta.id,
-            fwd: seqs["${meta.id}_fwd"],
-            rev: seqs["${meta.id}_rev"],
-            min: meta.min,
-            max: meta.max,
-        ]
-    }
+    // Each downloaded set becomes a samplesheet, exactly as a --input FASTA would, so
+    // workflows/barbeque.nf validates and stages every input route the same way.
+    PARSE_PRIMERS(ch_primer_fasta)
+    ch_versions = ch_versions.mix(PARSE_PRIMERS.out.versions)
 
     emit:
-    primers  = ch_primers
-    versions = ch_versions
+    samplesheet = PARSE_PRIMERS.out.samplesheet.map { _meta, tsv -> tsv }
+    versions    = ch_versions
 }

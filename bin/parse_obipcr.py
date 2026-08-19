@@ -152,10 +152,35 @@ IUPAC_CODES = {
     'N': {'A', 'C', 'G', 'T'}
 }
 
-def is_iupac_match(b1, b2):
-    b1_bases = IUPAC_CODES.get(b1.upper(), {b1.upper()})
-    b2_bases = IUPAC_CODES.get(b2.upper(), {b2.upper()})
-    return bool(b1_bases & b2_bases)
+def is_iupac_match(primer_base, match_base):
+    """Return whether a primer pattern base matches a reference base.
+
+    IUPAC ambiguity is directional here: ambiguity codes in the primer expand
+    the bases it can bind, while an ambiguous base in the reference sequence
+    is counted as an OBI-PCR error because its actual nucleotide is unknown.
+    """
+    primer_bases = IUPAC_CODES.get(
+        primer_base.upper(),
+        {primer_base.upper()},
+    )
+    match_base = match_base.upper()
+    return match_base in {"A", "C", "G", "T"} and match_base in primer_bases
+
+
+def mismatch_positions(primer, match_seq):
+    """Return 1-based mismatch positions from the primer's 5' and 3' ends."""
+    primer = primer.upper()
+    match_seq = match_seq.upper()
+    length = min(len(primer), len(match_seq))
+    indices = [
+        i
+        for i in range(length)
+        if not is_iupac_match(primer[i], match_seq[i])
+    ]
+    return (
+        [i + 1 for i in indices],
+        [length - i for i in indices],
+    )
 
 def find_mismatches(primer, match_seq, start_pos, is_reverse=False):
     """
@@ -169,34 +194,36 @@ def find_mismatches(primer, match_seq, start_pos, is_reverse=False):
     """
     primer = primer.upper()
     match_seq = match_seq.upper()
+    primer_positions, three_prime_positions = mismatch_positions(primer, match_seq)
 
-    primer_mismatches = []
+    primer_mismatches = [str(position) for position in primer_positions]
     genome_mismatches = []
-    three_prime_mismatches = []
+    three_prime_mismatches = [str(position) for position in three_prime_positions]
     severity_total = 0.0
 
-    length = min(len(primer), len(match_seq))
-    for i in range(length):
-        if not is_iupac_match(primer[i], match_seq[i]):
-            dist_from_3prime = length - i
-            primer_mismatches.append(str(i + 1))
-            three_prime_mismatches.append(str(dist_from_3prime))
+    for primer_position, dist_from_3prime in zip(
+        primer_positions,
+        three_prime_positions,
+    ):
+        i = primer_position - 1
+        if not is_reverse:
+            genome_pos = start_pos + i
+        else:
+            genome_pos = start_pos - i
 
-            if not is_reverse:
-                genome_pos = start_pos + i
-            else:
-                genome_pos = start_pos - i
+        genome_mismatches.append(str(genome_pos))
 
-            genome_mismatches.append(str(genome_pos))
-
-            base_severity = MISMATCH_SEVERITY.get(frozenset({primer[i], match_seq[i]}), 2.0)
-            if dist_from_3prime <= 3:
-                position_weight = 3.0
-            elif dist_from_3prime <= 6:
-                position_weight = 1.5
-            else:
-                position_weight = 1.0
-            severity_total += base_severity * position_weight
+        base_severity = MISMATCH_SEVERITY.get(
+            frozenset({primer[i], match_seq[i]}),
+            2.0,
+        )
+        if dist_from_3prime <= 3:
+            position_weight = 3.0
+        elif dist_from_3prime <= 6:
+            position_weight = 1.5
+        else:
+            position_weight = 1.0
+        severity_total += base_severity * position_weight
 
     return (",".join(primer_mismatches), ",".join(genome_mismatches),
             ",".join(three_prime_mismatches), str(round(severity_total, 2)))
@@ -230,8 +257,30 @@ def process_obipcr(input_file, output_file):
             rv_primer = meta.get("reverse_primer", "").replace("#", "")
             rv_match = meta.get("reverse_match", "")
 
-            fw_mm_primer, fw_mm_genome, fw_mm_3prime, fw_mm_severity = find_mismatches(fw_primer, fw_match, start_pos, is_reverse=False)
-            rv_mm_primer, rv_mm_genome, rv_mm_3prime, rv_mm_severity = find_mismatches(rv_primer, rv_match, end_pos, is_reverse=True)
+            # Header coordinates are always written low..high. For a reverse-strand
+            # amplicon the forward primer binds at the high-coordinate end and the
+            # reverse primer binds at the low-coordinate end, so their coordinate
+            # anchors and traversal directions must be swapped.
+            reverse_direction = str(direction).strip().lower() in {"r", "reverse"}
+            if reverse_direction:
+                fw_anchor, fw_is_reverse = end_pos, True
+                rv_anchor, rv_is_reverse = start_pos, False
+            else:
+                fw_anchor, fw_is_reverse = start_pos, False
+                rv_anchor, rv_is_reverse = end_pos, True
+
+            fw_mm_primer, fw_mm_genome, fw_mm_3prime, fw_mm_severity = find_mismatches(
+                fw_primer,
+                fw_match,
+                fw_anchor,
+                is_reverse=fw_is_reverse,
+            )
+            rv_mm_primer, rv_mm_genome, rv_mm_3prime, rv_mm_severity = find_mismatches(
+                rv_primer,
+                rv_match,
+                rv_anchor,
+                is_reverse=rv_is_reverse,
+            )
 
             amplicon_gc = calculate_gc(seq)
             hetero_dimer = max(

@@ -12,11 +12,10 @@ It predicts in-silico amplicons, clusters identical or near-identical barcode se
 
 ## What It Does
 
-BarBeQuE has three entry points:
+BarBeQuE has two entry points:
 
 - Normal benchmarking: primers x databases -> in-silico PCR -> clustering -> consensus taxonomy -> reports.
 - `--build_references`: install reference FASTAs, primer FASTAs, NCBI taxdump, and accession-to-taxid data.
-- `--hierarchical_clustering`: screen a custom FASTA for divergent sequences inside species-level groups.
 
 ## Quick Start
 
@@ -30,8 +29,8 @@ nextflow run bio-raum/BarBeQuE \
   --outdir results
 ```
 
-Add `--blocklist` to remove reference records assigned to taxids in FooDMe2's
-built-in blocklist. It is disabled by default.
+Add `--accession_blocklist accessions.txt` to remove selected accessions after
+OBI-PCR parsing and keep them out of masking, clustering, taxonomy, and reports.
 
 Install references first when running on a fresh system:
 
@@ -46,11 +45,12 @@ nextflow run bio-raum/BarBeQuE \
 
 1. [Installation](docs/installation.md)
 2. [Usage](docs/usage.md)
-3. [Pipeline Workflow](docs/pipeline.md)
-4. [Main Analysis Workflow](docs/barbeque.md)
-5. [Reference Installation](docs/build_references.md)
-6. [Outputs](docs/output.md)
-7. [Software](docs/software.md)
-8. [Troubleshooting](docs/troubleshooting.md)
-9. [Developer Guide](docs/developer.md)
-10. [Versioning](docs/versioning.md)
+3. [Primer Input](docs/primer_input.md)
+4. [Pipeline Workflow](docs/pipeline.md)
+5. [Main Analysis Workflow](docs/barbeque.md)
+6. [Reference Installation](docs/build_references.md)
+7. [Outputs](docs/output.md)
+8. [Software](docs/software.md)
+9. [Troubleshooting](docs/troubleshooting.md)
+10. [Developer Guide](docs/developer.md)
+11. [Versioning](docs/versioning.md)

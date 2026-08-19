@@ -8,10 +8,9 @@ Outputs are written under `--outdir`, default `results`.
 | --- | --- |
 | `pipeline_info/` | Staged samplesheet and software version metadata. |
 | `reports/` | MultiQC reports, one per primer/database group. |
-| `raw/obipcr/` | Raw OBI in-silico PCR output when `--insilico_tool obipcr`. |
-| `raw/cutadapt/` | Raw cutadapt in-silico PCR output when `--insilico_tool cutadapt`. |
+| `raw/obipcr/` | Raw OBI in-silico PCR output. |
 | `parsed_obipcr/` | Parsed OBI results with primer mismatch and amplicon metrics. |
-| `collapsed_primers/` | Consensus primer FASTAs created from primer FASTA directory input. |
+| `primers/` | The samplesheet generated from primer FASTA input, plus any parser warnings. |
 | `amplicon_lengths/` | Amplicon length summaries. |
 | `build_db_taxids/` | Accession-to-taxid and taxid-count tables built from each database. |
 | `db_distribution/` | Taxonomic composition summaries for each database. |
@@ -24,13 +23,9 @@ Outputs are written under `--outdir`, default `results`.
 | Directory | Created When | Contents |
 | --- | --- | --- |
 | `taxid_filtered/` | `--taxid` | Database FASTAs restricted to the requested taxon. |
-| `blocklist_filtered/` | `--blocklist` | FASTAs with FooDMe2-blocklisted taxids removed, plus TSV removal summaries. |
-| `filtered_amplicons/` | `--exclude_accessions` | Amplicon FASTAs after curated accession removal and exclusion audit tables. |
-| `species_split/` | `--screen_species_divergence` | Amplicons split into species-level FASTAs. |
-| `species_divergence/` | `--screen_species_divergence` | Divergence tables, divergent FASTAs, and linkage matrices. |
+| `accession_blocklist/` | `--accession_blocklist` | Per-primer/database summaries of listed, matched, and removed accessions. |
 | `tax_coverage/` | `--taxon` | Taxon-focused coverage and species representation tables. |
 | `completeness/` | `--completeness_table` | Database completeness summaries for `--taxon`. |
-| `hierarchical_clustering/` | `--hierarchical_clustering` | Standalone clustering outputs for a custom FASTA. |
 
 ## Consensus Table
 
@@ -47,10 +42,14 @@ Important columns:
 - `disambiguation`: taxa represented inside the cluster.
 
 If a cluster contains accessions from multiple taxa, the barcode sequence is not unique for those taxa at the selected clustering threshold.
+Consensus assignments use `--consensus_fraction` (default `1.0`). The fraction is
+calculated over accessions with valid taxonomy; accessions without a usable taxid
+do not vote and are not included in the denominator.
 
 ## Parsed OBI Table
 
-`parsed_obipcr/` contains one TSV per primer/database pair when OBI is used. It includes:
+`parsed_obipcr/` contains one TSV per primer/database pair when OBI is used. When
+`--accession_blocklist` is supplied, these are the filtered tables. They include:
 
 - binding coordinates
 - amplicon length
@@ -61,15 +60,11 @@ If a cluster contains accessions from multiple taxa, the barcode sequence is not
 - dimer/hairpin indicators
 - hit counts and length spread per source sequence
 
-## Divergence Tables
+## Accession Blocklist Summary
 
-Species-divergence outputs are advisory. The main table contains:
+`accession_blocklist/` contains one `*.accession_blocklist_summary.tsv` per
+primer/database pair:
 
-- `accession`
-- `species_taxid`
-- `subcluster`
-- `max_intra_id`
-- `mean_intra_id`
-- `flag`
-
-Flags are `core`, `divergent`, or `not_screened`.
+- `listed_accessions`, `matched_accessions`, and `unmatched_accessions`
+- input, kept, and removed FASTA record counts
+- input, kept, and removed parsed TSV row counts
