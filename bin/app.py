@@ -1084,47 +1084,49 @@ else:
                 ],
                 ignore_index=True,
             )
+            primer_lengths = {
+                "Forward": fw_primer_len,
+                "Reverse": rv_primer_len,
+            }
+            pos_counts["position_from_5prime"] = pos_counts.apply(
+                lambda row: primer_lengths[row["Primer"]] - row["position"] + 1,
+                axis=1,
+            )
 
             mp1, mp2 = st.columns(2)
             mp1.metric(
-                "Most common Fwd mismatch distance",
-                f"{int(fw_pos.mode().iloc[0])} bp from 3' end"
+                "Most common Fwd mismatch position",
+                f"{fw_primer_len - int(fw_pos.mode().iloc[0]) + 1} bp from 5' end"
                 if not fw_pos.empty else "—",
             )
             mp2.metric(
-                "Most common Rev mismatch distance",
-                f"{int(rv_pos.mode().iloc[0])} bp from 3' end"
+                "Most common Rev mismatch position",
+                f"{rv_primer_len - int(rv_pos.mode().iloc[0]) + 1} bp from 5' end"
                 if not rv_pos.empty else "—",
             )
 
             fig_mm_pos = px.bar(
                 pos_counts,
-                x="position",
+                x="position_from_5prime",
                 y="count",
                 color="Primer",
                 barmode="group",
                 title="Mismatch frequency along the primer (5' → 3')",
-                labels={"position": "Distance from 3' end (1 = terminal base)", "count": "# mismatches"}
+                labels={"position_from_5prime": "Position from 5' end", "count": "# mismatches"}
             )
             fig_mm_pos.update_xaxes(
-                range=[max(fw_primer_len, rv_primer_len) + 0.5, 0.5],
+                range=[0.5, max(fw_primer_len, rv_primer_len) + 0.5],
                 dtick=1,
             )
-            fig_mm_pos.add_vrect(
-                x0=0.5, x1=3.5, fillcolor="red", opacity=0.08, line_width=0,
-                annotation_text="highest extension risk", annotation_position="top right"
-            )
+            if fw_primer_len == rv_primer_len:
+                fig_mm_pos.add_vrect(
+                    x0=fw_primer_len - 2.5, x1=fw_primer_len + 0.5,
+                    fillcolor="red", opacity=0.08, line_width=0,
+                    annotation_text="highest extension risk", annotation_position="top left"
+                )
             st.plotly_chart(compact_plot(fig_mm_pos), width="stretch")
 
-            primer_lengths = {
-                "Forward": fw_primer_len,
-                "Reverse": rv_primer_len,
-            }
             position_summary = pos_counts.copy()
-            position_summary["position_from_5prime"] = position_summary.apply(
-                lambda row: primer_lengths[row["Primer"]] - row["position"] + 1,
-                axis=1,
-            )
             position_summary["percentage"] = (
                 position_summary["count"] / len(obipcr_df) * 100
             ).round(3)
@@ -1158,28 +1160,6 @@ else:
                 "Mismatches within 3 bp of the 3' end are weighted most heavily by BarBeQuE's calculated severity score "
                 "since they're most likely to block polymerase extension entirely."
             )
-
-    # # Row 3: self-binding risk, full width
-    # st.markdown("**Primer self-binding risk (dimer / hairpin stem length)**")
-    # risk_dist = (
-    #     obipcr_df[["Hetero_Dimer_3prime_Len", "Forward_Hairpin_Stem", "Reverse_Hairpin_Stem"]]
-    #     .rename(columns={
-    #         "Hetero_Dimer_3prime_Len": "Hetero-dimer (3')",
-    #         "Forward_Hairpin_Stem": "Forward hairpin",
-    #         "Reverse_Hairpin_Stem": "Reverse hairpin"
-    #     })
-    #     .melt(var_name="metric", value_name="stem_length")
-    # )
-    # fig_obipcr_risk = px.box(
-    #     risk_dist,
-    #     x="metric",
-    #     y="stem_length",
-    #     color="metric",
-    #     points=False,   # don't render ~11k outlier markers per box
-    #     title="Self-binding stem length across amplicons (longer = higher risk)",
-    #     labels={"stem_length": "Stem length (bp)", "metric": ""}
-    # )
-    # st.plotly_chart(compact_plot(fig_obipcr_risk, height=380), width="stretch")
 
     st.markdown("**Full OBI-PCR results**")
     # Amplicon_Sequence holds the full amplicon per row (~9 MB total here); rendering it

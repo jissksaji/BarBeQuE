@@ -14,8 +14,6 @@ Helper Modules
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids'
 include { DB_DISTRIBUTION } from './../modules/db_distribution/main.nf'
 include { AMPLICON_LENGTH } from './../modules/seqkit/amplicon_lengths'
-include { TAXONOMIC_COVERAGE_PLOT } from './../modules/helper/taxonomic_coverage_plot/main'
-include { COMPLETENESS_TABLE } from './../modules/helper/completeness_table/main'
 include { SPECIES_REPRESENTATION } from './../modules/helper/species_representation/main'
 include { MASK } from './../modules/mask/main.nf'
 include { PARSE_UC } from './../modules/helper/parse_uc'
@@ -27,6 +25,7 @@ Core Modules
 include { OBIPCR_INSILICOPCR } from './../modules/obipcr'
 include { PARSE_OBIPCR } from './../modules/parse_obipcr/main.nf'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast'
+include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication'
 include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus'
 
@@ -45,7 +44,7 @@ workflow BARBEQUE {
     // The pre-installed (or user-supplied) taxdump folder used for taxonomic lookups
     def taxdump_path = params.taxdump ?: params.references.taxdump
     ch_taxdump = channel.value(
-        file(taxdump_path, checkIfExists: !params.build_references)
+        file(taxdump_path, checkIfExists: true)
     )
 
     // nucl_gb.accession2taxid is installed beside new_taxdump in taxonomy/.
@@ -53,14 +52,6 @@ workflow BARBEQUE {
     if (!accession_file && params.reference_base) {
         def taxonomy_dir = "${params.reference_base}/barbeque/${params.reference_version}/taxonomy"
         accession_file = files("${taxonomy_dir}/*{accession2taxid,genbank2taxid,nucl_}*").find()
-    }
-    // Compatibility with installations made before the shared taxonomy folder.
-    if (!accession_file && params.reference_base) {
-        def genbank_dir = "${params.reference_base}/barbeque/${params.reference_version}/genbank2taxid"
-        accession_file = files("${genbank_dir}/*{accession2taxid,genbank2taxid,nucl_}*").find()
-    }
-    if (!accession_file && taxdump_path) {
-        accession_file = files("${taxdump_path}/*{accession2taxid,genbank2taxid,nucl_}*").find()
     }
 
     if (!accession_file) {
@@ -178,23 +169,28 @@ workflow BARBEQUE {
     }
 
     ch_insilico_fasta
-        .branch { _m, f ->
-            valid: file(f).size() > 0
-            invalid: file(f).size() == 0
-        }
-        .set { ch_insilico_by_status }
+        .filter { _meta, fasta -> file(fasta).size() > 0 }
+        .set { ch_nonempty_insilico_fasta }
+
+    if (params.dereplicate_amplicons) {
+        VSEARCH_DEREPLICATION(ch_nonempty_insilico_fasta)
+        ch_versions = ch_versions.mix(VSEARCH_DEREPLICATION.out.versions)
+        ch_pre_mask_amplicons = VSEARCH_DEREPLICATION.out.fasta
+    }
+    else {
+        ch_pre_mask_amplicons = ch_nonempty_insilico_fasta
+    }
 
     if (params.mask) {
         // Mask primer-binding regions in each amplicon to mimic real sequencing reads
-        MASK(ch_insilico_by_status.valid)
+        MASK(ch_pre_mask_amplicons)
         ch_amplicons = MASK.out.fasta
         ch_versions = ch_versions.mix(MASK.out.versions)
     }
     else {
-        ch_amplicons = ch_insilico_by_status.valid
+        ch_amplicons = ch_pre_mask_amplicons
     }
 
-    // Record the amplicon length distribution per primer/database (on the raw amplicons)
     AMPLICON_LENGTH(ch_amplicons)
     ch_versions = ch_versions.mix(AMPLICON_LENGTH.out.versions)
     multiqc_files = multiqc_files.mix(AMPLICON_LENGTH.out.tsv)
@@ -207,7 +203,6 @@ workflow BARBEQUE {
     VSEARCH_CLUSTER_FAST(ch_amplicons)
     ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
 
-    // Extract accession-to-cluster assignments from the vsearch .uc file
     PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)
     ch_versions = ch_versions.mix(PARSE_UC.out.versions)
 
@@ -234,14 +229,6 @@ workflow BARBEQUE {
         ch_taxdump,
     )
     ch_versions = ch_versions.mix(DB_DISTRIBUTION.out.versions)
-
-    if (params.completeness_table) {
-        // Report how completely the target taxon is represented in each database
-        COMPLETENESS_TABLE(
-            BUILD_DB_TAXIDS.out.taxids_counts
-        )
-        ch_versions = ch_versions.mix(COMPLETENESS_TABLE.out.versions)
-    }
 
     if (params.taxon) {
         // Assess taxonomic coverage of clusters against the requested taxon

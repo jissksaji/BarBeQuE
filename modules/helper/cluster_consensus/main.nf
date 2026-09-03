@@ -2,9 +2,6 @@ process CLUSTER_CONSENSUS {
 
     tag "${meta.primer}|${meta.db}"
     label 'process_medium'
-
-
-
     conda "${moduleDir}/environment.yml"
 
     input:
@@ -21,7 +18,7 @@ process CLUSTER_CONSENSUS {
     """
     set -euo pipefail
 
-    python3 ${moduleDir}/cluster_consensus.py \\
+    cluster_consensus.py \\
         --input ${cluster_taxonomy} \\
         --taxdump ${taxdump} \\
         --output ${prefix}.cluster_consensus.tsv ${args}

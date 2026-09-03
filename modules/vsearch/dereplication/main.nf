@@ -1,6 +1,6 @@
 process VSEARCH_DEREPLICATION {
 
-    tag "${meta.primer}|${meta.db}|sp${meta.species}"
+    tag "${meta.primer}|${meta.db}"
 
     label 'short_serial'
 
@@ -15,7 +15,7 @@ process VSEARCH_DEREPLICATION {
     path "versions.yml", emit: versions
 
     script:
-    def prefix = meta.species ? "${meta.primer}_${meta.db}.sp_${meta.species}" : "${meta.primer}_${meta.db}"
+    def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
     """
     vsearch \\
     --fastx_uniques ${fasta} \\

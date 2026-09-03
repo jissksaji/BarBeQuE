@@ -117,7 +117,7 @@
           "default": false
         },
         "version": {
-          "type": "boolean",
+          "type": ["boolean", "string"],
           "description": "Display version and exit.",
           "fa_icon": "fas fa-question-circle"
         }
@@ -159,6 +159,11 @@
           "maximum": 1.0,
           "description": "VSEARCH --cluster_fast identity threshold used to group barcode sequences (set with --cluster_id)"
         },
+        "dereplicate_amplicons": {
+          "type": "boolean",
+          "default": false,
+          "description": "Dereplicate identical post-PCR amplicons before VSEARCH clustering"
+        },
         "consensus_fraction": {
           "type": "number",
           "default": 1.0,
@@ -196,11 +201,6 @@
         "custom_db_filter": {
           "type": "boolean",
           "description": "Apply custom DB filtering",
-          "default": false
-        },
-        "completeness_table": {
-          "type": "boolean",
-          "description": "Report how completely the target taxon is represented in each reference database",
           "default": false
         }
       },

@@ -69,13 +69,18 @@ class WorkflowPipeline {
         }
 
         def first_line = null
-        path.withReader { reader ->
-            def line
-            while (first_line == null && (line = reader.readLine()) != null) {
-                if (line.trim()) {
-                    first_line = line.trim()
+        try {
+            path.withReader { reader ->
+                def line
+                while (first_line == null && (line = reader.readLine()) != null) {
+                    if (line.trim()) {
+                        first_line = line.trim()
+                    }
                 }
             }
+        } catch (Exception e) {
+            // Let the schema validator handle missing files
+            return false
         }
         return first_line != null && first_line.startsWith('>')
     }

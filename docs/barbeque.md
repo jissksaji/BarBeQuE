@@ -46,9 +46,8 @@ Taxonomy input is resolved from:
 12. Join clustered accessions to taxids.
 13. Calculate consensus taxonomy per cluster.
 14. Summarize database taxonomic distribution.
-15. Optionally write completeness tables with `--completeness_table`.
-16. Optionally run target-taxon coverage with `--taxon`.
-17. Build one MultiQC report per primer/database combination.
+15. Optionally run target-taxon coverage with `--taxon`.
+16. Build one MultiQC report per primer/database combination.
 
 ## Excluding Unwanted Accessions
 

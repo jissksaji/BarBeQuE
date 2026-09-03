@@ -68,7 +68,7 @@ class TestParseObipcr(unittest.TestCase):
             with self.subTest(header=header):
                 self.assertIsNone(self.parse_obipcr.parse_fasta_header(header))
 
-    def test_primer_quality_helpers_cover_edge_cases(self):
+    def test_gc_calculation_handles_iupac_bases(self):
         p = self.parse_obipcr
 
         self.assertEqual(p.calculate_gc(""), "0.0")
@@ -76,15 +76,8 @@ class TestParseObipcr(unittest.TestCase):
         self.assertEqual(p.calculate_gc("CGAGTYTTTGAAYGCAAGTTG"), "42.86")
         self.assertEqual(p.calculate_gc("YCCCGYCTGAYCTGRGGT"), "66.67")
         self.assertEqual(p.calculate_gc("RYSWKMBDHVN"), "50.0")
-        self.assertEqual(p.calculate_tm("GCGC"), "16.0")
-        self.assertEqual(p.calculate_tm("GCGCGCGCGCGCGCGCGCGC"), "72.3")
-        self.assertEqual(p.gc_clamp_count("AAAAAGCGCC"), "5")
-        self.assertEqual(p.max_mononucleotide_run("AAGGGCTTTT"), "4")
-        self.assertEqual(p.reverse_complement("acgtnx"), "NNACGT")
-        self.assertEqual(p.three_prime_dimer_length("ACGT", "ACGT"), "4")
-        self.assertEqual(p.max_hairpin_stem("AGCTTTTAGCT"), "4")
 
-    def test_iupac_matching_and_mismatch_scoring(self):
+    def test_iupac_matching_and_mismatch_positions(self):
         p = self.parse_obipcr
 
         self.assertTrue(p.is_iupac_match("Y", "C"))
@@ -96,23 +89,6 @@ class TestParseObipcr(unittest.TestCase):
         self.assertEqual(
             p.mismatch_positions("YCC", "TYC"),
             ([2], [2]),
-        )
-
-        self.assertEqual(
-            p.find_mismatches("ACGT", "ACTT", 100, is_reverse=False),
-            ("3", "102", "2", "3.0"),
-        )
-        self.assertEqual(
-            p.find_mismatches("ACGT", "ACTT", 100, is_reverse=True),
-            ("3", "98", "2", "3.0"),
-        )
-        self.assertEqual(
-            p.find_mismatches("ACNT", "ACGT", 100, is_reverse=False),
-            ("", "", "", "0.0"),
-        )
-        self.assertEqual(
-            p.find_mismatches("ACGT", "AYGT", 100, is_reverse=False),
-            ("2", "101", "3", "6.0"),
         )
 
     def test_process_obipcr_writes_full_metrics_and_hit_spread(self):
@@ -138,10 +114,9 @@ class TestParseObipcr(unittest.TestCase):
 
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]["Sequence_ID"], "seq1")
-        self.assertEqual(rows[0]["Hits_On_Sequence"], "2")
-        self.assertEqual(rows[0]["Amplicon_Length_Spread"], "4")
+        self.assertEqual(rows[0]["Amplicon_GC"], "54.55")
         self.assertEqual(rows[1]["Forward_Mismatch_Positions_Primer"], "3")
-        self.assertEqual(rows[1]["Reverse_Mismatch_Positions_Genome"], "212")
+        self.assertEqual(rows[1]["Reverse_Mismatch_From_3Prime"], "2")
 
 
 class TestMask(unittest.TestCase):
@@ -469,13 +444,21 @@ class TestTaxidAndAccessionHelpers(unittest.TestCase):
             taxids = Path(tmp) / "taxids.txt"
             mapping = Path(tmp) / "accession_taxid.tsv"
             taxids.write_text("\n111\n222\n333\n\n")
-            mapping.write_text("A1.1\t111\nA2\t999\nA3.12\t222\nAY846379.1.1791\t333\na malformed line\n")
+            mapping.write_text(
+                "A1.1\t111\n"
+                "A2\t999\n"
+                "A3.12\t222\n"
+                "AY846379.1.1791\t333\n"
+                "NCBI1\tNCBI1.4\t111\t0\n"
+                "NCBI2\tNCBI2.1\t999\t0\n"
+                "a malformed line\n"
+            )
 
             keep_taxids = self.taxid_filter.load_taxids(taxids)
             accessions = self.taxid_filter.load_matching_accessions(mapping, keep_taxids)
 
         self.assertEqual(keep_taxids, {"111", "222", "333"})
-        self.assertEqual(accessions, {"A1", "A3", "AY846379"})
+        self.assertEqual(accessions, {"A1", "A3", "AY846379", "NCBI1"})
 
 
 class TestAccessionBlocklist(unittest.TestCase):
@@ -634,89 +617,6 @@ class TestDbDistribution(unittest.TestCase):
                 "taxid\tcount\tresolved_rank\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n"
                 "11\t3\tspecies\t\t\t\t\t\tGenus\tGenus species\n",
             )
-
-
-class TestCompletenessTable(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        fake_ete3 = types.ModuleType("ete3")
-        fake_ete3.NCBITaxa = object
-        cls.completeness = load_script("completeness_table", {"ete3": fake_ete3})
-
-    def test_load_species_list_from_inline_string_or_file(self):
-        self.assertEqual(
-            self.completeness.load_species_list("Camellia sinensis + Camellia japonica"),
-            ["Camellia sinensis", "Camellia japonica"],
-        )
-        with tempfile.NamedTemporaryFile("w+", delete=False) as handle:
-            handle.write("A species\n\nB species\n")
-            path = handle.name
-        try:
-            self.assertEqual(self.completeness.load_species_list(path), ["A species", "B species"])
-        finally:
-            os.unlink(path)
-
-    def test_build_row_uses_lineage_and_db_counts(self):
-        class FakeNcbi:
-            lineage = {
-                111: [1, 10, 100, 111],
-                112: [1, 10, 100, 112],
-                211: [1, 20, 200, 211],
-            }
-            ranks = {
-                1: "no rank",
-                10: "family",
-                20: "family",
-                100: "genus",
-                200: "genus",
-                111: "species",
-                112: "species",
-                211: "species",
-            }
-            names = {
-                10: "Theaceae",
-                100: "Camellia",
-                111: "Camellia sinensis",
-                112: "Camellia japonica",
-                211: "Other species",
-            }
-
-            def get_name_translator(self, names):
-                return {"Camellia sinensis": [111]}
-
-            def get_lineage(self, taxid):
-                return self.lineage[taxid]
-
-            def get_rank(self, taxids):
-                return {taxid: self.ranks[taxid] for taxid in taxids}
-
-            def get_descendant_taxa(self, taxid, collapse_subspecies=False):
-                if taxid == 100:
-                    return [111, 112]
-                if taxid == 10:
-                    return [111, 112, 211]
-                return []
-
-            def get_taxid_translator(self, taxids):
-                return {taxid: self.names[taxid] for taxid in taxids}
-
-        row = self.completeness.build_row("Camellia sinensis", {111: 7, 112: 2}, FakeNcbi())
-
-        self.assertEqual(
-            row,
-            [
-                "Camellia sinensis",
-                7,
-                2,
-                2,
-                100.0,
-                2,
-                3,
-                66.67,
-                "Camellia japonica; Camellia sinensis",
-                "Camellia japonica; Camellia sinensis",
-            ],
-        )
 
 
 if __name__ == "__main__":

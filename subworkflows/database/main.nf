@@ -96,9 +96,9 @@ workflow DATABASE {
                 // read (or clobber) the cache of the whole, unfiltered database.
                 def cached_db = params.reference_base ? file("${params.reference_base}/barbeque/${params.reference_version}/filtered/${meta.id}/${meta.id}.cleaned.fasta") : null
                 cached: !params.taxid && cached_db?.exists() && has_fasta_header(cached_db)
-                    return tuple(meta, cached_db)
+                return tuple(meta, cached_db)
                 uncached: true
-                    return tuple(meta, db)
+                return tuple(meta, db)
             }
             .set { ch_dbs_by_cache }
 
@@ -109,6 +109,6 @@ workflow DATABASE {
     }
 
     emit:
-    db       = ch_dbs
+    db = ch_dbs
     versions = ch_versions
 }

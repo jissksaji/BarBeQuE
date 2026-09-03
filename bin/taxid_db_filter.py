@@ -36,7 +36,11 @@ def load_matching_accessions(path, keep_taxids):
     with open(path) as fh:
         for line in fh:
             fields = line.rstrip("\n").split("\t")
-            if len(fields) >= 2 and fields[1] in keep_taxids:
+            # BarBeQuE's generated lookup is accession<TAB>taxid, whereas
+            # NCBI nucl_gb.accession2taxid is accession<TAB>accession.version
+            # <TAB>taxid<TAB>gi. Support both forms.
+            taxid_index = 2 if len(fields) >= 3 else 1
+            if len(fields) > taxid_index and fields[taxid_index] in keep_taxids:
                 accessions.add(strip_version(fields[0]))
     return accessions
 

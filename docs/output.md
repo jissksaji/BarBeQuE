@@ -25,7 +25,6 @@ Outputs are written under `--outdir`, default `results`.
 | `taxid_filtered/` | `--taxid` | Database FASTAs restricted to the requested taxon. |
 | `accession_blocklist/` | `--accession_blocklist` | Per-primer/database summaries of listed, matched, and removed accessions. |
 | `tax_coverage/` | `--taxon` | Taxon-focused coverage and species representation tables. |
-| `completeness/` | `--completeness_table` | Database completeness summaries for `--taxon`. |
 
 ## Consensus Table
 

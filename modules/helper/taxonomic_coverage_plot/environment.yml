@@ -1,9 +1,0 @@
-name: helper_taxonomic_coverage_plot
-channels:
-  - conda-forge
-  - bioconda
-  
-dependencies:
-  - python>=3.10
-  - pandas
-  - plotly

@@ -165,7 +165,8 @@ def load_teeliste_data(t_path, db_path):
     # breaking every taxid match against accession/assigned_taxid downstream.
     t_df = pd.read_csv(t_path, sep="\t", header=0, dtype={"taxid": "string"})
     t_df = t_df.rename(columns={"German name": "german_name", "lat.": "latin_name"})
-    t_df = t_df[["german_name", "latin_name", "taxid"]]
+    t_df["rank"] = t_df.get("taxonomic_rank", "Unknown")
+    t_df = t_df[["german_name", "latin_name", "taxid", "rank"]]
 
     if db_path.exists():
         db_df = pd.read_csv(db_path, sep="\t", header=None)
@@ -174,6 +175,58 @@ def load_teeliste_data(t_path, db_path):
         db_df = pd.DataFrame(columns=["taxid", "count"])
         
     return t_df, db_df
+
+def accession_without_version(accession):
+    """Match an OBI-PCR sequence id to the unversioned accession taxid table."""
+    accession = str(accession).strip()
+    base, separator, version = accession.rpartition(".")
+    return base if separator and version.isdigit() else accession
+
+@st.cache_data
+def get_trimmed_sequence_counts(data_dir, runs_list, target_taxids, accession_taxid_path):
+    """
+    Count distinct database accessions that produced an in-silico amplicon for
+    each primer and target taxid.  This is deliberately based on parsed OBI-PCR
+    output, rather than consensus clusters: it answers how many source database
+    sequences were trimmed/amplified, even when a later cluster has a broader
+    taxonomic assignment.
+    """
+    accession_taxid_path = Path(accession_taxid_path)
+    if not accession_taxid_path.exists():
+        return {}
+
+    accession_taxids = pd.read_csv(
+        accession_taxid_path,
+        sep="\t",
+        header=None,
+        names=["accession", "taxid"],
+        dtype="string",
+    )
+    accession_to_taxid = dict(zip(
+        accession_taxids["accession"].str.strip(),
+        accession_taxids["taxid"].str.strip(),
+    ))
+    target_taxids = set(target_taxids)
+    trimmed_counts = {}
+
+    for run in runs_list:
+        parsed_path = Path(data_dir) / "parsed_obipcr" / f"{run['stem']}.tsv"
+        if not parsed_path.exists():
+            continue
+
+        sequence_ids = pd.read_csv(
+            parsed_path,
+            sep="\t",
+            usecols=["Sequence_ID"],
+            dtype="string",
+        )["Sequence_ID"].dropna().unique()
+        taxids = pd.Series(sequence_ids, dtype="string").map(
+            lambda accession: accession_to_taxid.get(accession_without_version(accession))
+        )
+        counts = taxids[taxids.isin(target_taxids)].value_counts().astype(int).to_dict()
+        trimmed_counts[run["primer"]] = counts
+
+    return trimmed_counts
 
 @st.cache_data
 def parse_all_consensus_files_for_db(data_dir, runs_list, target_taxids):
@@ -210,6 +263,32 @@ def parse_all_consensus_files_for_db(data_dir, runs_list, target_taxids):
             primer_data[primer] = records
             
     return primer_data
+
+def get_resolved_sequence_counts(primer_data, target_taxids):
+    """
+    Count accessions whose own taxid differs from a target taxid but whose
+    consensus cluster is assigned to that target.  For example, sequences
+    labelled as C. sinensis varieties that resolve to C. sinensis are counted
+    here, separately from direct accession-taxid matches.
+    """
+    target_taxids = set(target_taxids)
+    resolved_counts = {}
+
+    for primer, records in primer_data.items():
+        resolved_accessions = {}
+        for record in records:
+            assigned_taxid = record["ass_taxid"]
+            if (
+                assigned_taxid in target_taxids
+                and record["acc_taxid"] != assigned_taxid
+            ):
+                resolved_accessions.setdefault(assigned_taxid, set()).add(record["seqid"])
+        resolved_counts[primer] = {
+            taxid: len(accessions)
+            for taxid, accessions in resolved_accessions.items()
+        }
+
+    return resolved_counts
 
 def filter_venn_data(primer_data, teeliste_taxids, selected_primers, selected_ranks, metric):
     venn_data = {}
@@ -452,6 +531,7 @@ selected_db = st.sidebar.selectbox("Select a database", available_dbs)
 
 teeliste_path = TEELISTE_PATH
 taxids_db_path = DATA_DIR / "build_db_taxids" / f"{selected_db}.db_taxids_counts.tsv"
+accession_taxid_path = DATA_DIR / "build_db_taxids" / f"{selected_db}.accession_taxid.tsv"
 
 try:
     db_runs = [r for r in all_runs if r["db"] == selected_db]
@@ -462,6 +542,12 @@ try:
         target_taxid_set = set(target_taxids)
 
         all_db_primers = sorted(list(set(r["primer"] for r in db_runs)))
+        trimmed_sequence_counts = get_trimmed_sequence_counts(
+            DATA_DIR,
+            db_runs,
+            target_taxid_set,
+            accession_taxid_path,
+        )
         
         st.markdown(f"**Filter Settings for {selected_db}**")
         col1, col2, col3 = st.columns(3)
@@ -485,10 +571,24 @@ try:
             st.caption(f"Including {format_rank_list(selected_ranks)}")
             
         with col3:
-            default_primers = all_db_primers[:3] if len(all_db_primers) >= 3 else all_db_primers
+            preferred_default_primers = [
+                "ITS2_collapsed",
+                "intron-region-of-a-transfer-RNA-gene-200-1000",
+                "PCR_psbA-trnH",
+            ]
+            default_primers = [
+                primer for primer in preferred_default_primers
+                if primer in all_db_primers
+            ]
+            if not default_primers:
+                default_primers = all_db_primers[:3]
             selected_eval_primers = st.multiselect("Select Primers (Max 6):", all_db_primers, default=default_primers, max_selections=6, key="venn_primers")
 
         primer_data = parse_all_consensus_files_for_db(DATA_DIR, db_runs, target_taxid_set)
+        resolved_sequence_counts = get_resolved_sequence_counts(
+            primer_data,
+            target_taxid_set,
+        )
 
         st.markdown("### Primer Resolution Detail")
         st.caption("Resolution detail has its own rank slider, independent of the Venn/Best Primers rank cutoff above.")
@@ -620,34 +720,60 @@ try:
                 st.info(f"**Target Species:** {len(target_taxids)} | **Covered in Venn:** {covered_count} | **Omitted:** {omitted_count}")
 
             st.markdown("### Coverage Matrix")
+            st.caption(
+                "Each primer cell shows whether the taxon meets the selected coverage "
+                "filter, then direct trimmed sequences / original database sequences. "
+                "The 🔄 count is a different set of accessions whose consensus taxonomy "
+                "resolved to the target taxid (for example, a variety resolving to its species)."
+            )
             taxid_names = dict(zip(teeliste_df["taxid"].astype(str).str.strip(), teeliste_df["german_name"] + " (" + teeliste_df["latin_name"] + ")"))
+            taxid_ranks = dict(zip(teeliste_df["taxid"].astype(str).str.strip(), teeliste_df["rank"].fillna("Unknown")))
             db_counts = dict(zip(taxids_db_df["taxid"].astype(str).str.strip(), taxids_db_df["count"]))
+            primer_column_labels = {
+                primer: f"{primer} trimmed / DB"
+                for primer in selected_eval_primers
+            }
             
             matrix_data = []
             for taxid in target_taxids:
                 row = {
                     "TaxID": taxid,
                     "Name": taxid_names.get(taxid, "Unknown"),
+                    "Rank": taxid_ranks.get(taxid, "Unknown"),
                     "DB Count": db_counts.get(taxid, 0)
                 }
                 total_covered = 0
                 for primer in selected_eval_primers:
+                    trimmed_count = trimmed_sequence_counts.get(primer, {}).get(taxid, 0)
+                    resolved_count = resolved_sequence_counts.get(primer, {}).get(taxid, 0)
+                    db_count = pd.to_numeric(db_counts.get(taxid, 0), errors="coerce")
+                    db_count = 0 if pd.isna(db_count) else int(db_count)
                     if taxid in venn_data.get(primer, set()):
-                        row[primer] = "✅"
+                        coverage_marker = "✅"
                         total_covered += 1
                     else:
-                        row[primer] = "❌"
+                        coverage_marker = "❌"
+                    resolved_suffix = f" + 🔄 {resolved_count:,}" if resolved_count else ""
+                    row[primer_column_labels[primer]] = (
+                        f"{coverage_marker} {trimmed_count:,} / {db_count:,}{resolved_suffix}"
+                        if db_count else f"{coverage_marker} {trimmed_count:,}{resolved_suffix}"
+                    )
                 row["Total"] = total_covered
                 matrix_data.append(row)
                 
             matrix_df = pd.DataFrame(matrix_data).sort_values(by="Total", ascending=False).reset_index(drop=True)
             
             total_db_count = sum(pd.to_numeric(pd.Series(list(db_counts.values())), errors="coerce").fillna(0))
-            total_row = {"TaxID": "TOTAL", "Name": "Total Species Covered", "DB Count": total_db_count}
+            total_row = {"TaxID": "TOTAL", "Name": "Total Species Covered", "Rank": "", "DB Count": total_db_count}
             
             for primer in selected_eval_primers:
                 covered = len(venn_data.get(primer, set()))
-                total_row[primer] = f"{covered} / {len(target_taxids)}"
+                trimmed_total = sum(trimmed_sequence_counts.get(primer, {}).values())
+                resolved_total = sum(resolved_sequence_counts.get(primer, {}).values())
+                total_row[primer_column_labels[primer]] = (
+                    f"{covered} / {len(target_taxids)} taxa | "
+                    f"{trimmed_total:,} direct + 🔄 {resolved_total:,} resolved"
+                )
             total_row["Total"] = None
             
             matrix_df = pd.concat([matrix_df, pd.DataFrame([total_row])], ignore_index=True)

@@ -188,12 +188,6 @@ are written to `accession_blocklist/*.accession_blocklist_summary.tsv`.
 
 This adds taxon-focused coverage outputs.
 
-```bash
---completeness_table
-```
-
-This adds database completeness summaries using the value supplied to `--taxon`.
-
 ## Interactive Dashboard
 
 ```bash

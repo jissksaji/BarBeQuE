@@ -17,7 +17,7 @@ process SPECIES_REPRESENTATION {
     script:
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
     """
-    python3 ${moduleDir}/bin/species_representation.py \\
+    species_representation.py \\
         --coverage ${coverage_tsv} \\
         --consensus ${consensus_tsv} \\
         --output ${coverage_tsv.name.replaceAll('.tax_coverage', '')}.representation.tsv

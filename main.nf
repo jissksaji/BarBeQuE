@@ -22,7 +22,7 @@ include { BUILD_REFERENCES }    from './workflows/build_references'
 include { PIPELINE_COMPLETION } from './subworkflows/pipeline_completion'
 include { DATABASE } from './subworkflows/database'
 include { INTERACTIVE_RESULTS } from './workflows/interactive_results'
-include { paramsHelp; paramsSummaryLog } from 'plugin/nf-schema'
+include { paramsHelp; paramsSummaryLog; validateParameters } from 'plugin/nf-schema'
 
 workflow {
 
@@ -39,6 +39,7 @@ workflow {
       System.exit(0)
   }
 
+  validateParameters()
   WorkflowMain.initialise(workflow, params, log)
   WorkflowPipeline.initialise(params, log)
 
