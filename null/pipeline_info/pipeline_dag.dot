@@ -1,3 +1,0 @@
-digraph "pipeline_dag" {
-rankdir=TB;
-}

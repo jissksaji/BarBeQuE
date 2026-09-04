@@ -84,3 +84,23 @@ results_its2/pipeline_info/pipeline_dag.dot
 *.uc
 *.svg
 pipeline_*
+# Run output directories (kept locally, never committed)
+its2/
+its2-*/
+results-*/
+rresults/
+tnrl_results/
+null/
+res/*.svg
+
+# Stray analysis scratch output
+commnet_*
+out.txt
+out.log
+output.tsv
+outliers_report_all.tsv
+vsearch_help.txt
+test_config.config
+test_*.fasta
+test_*.fa
+test_*.tsv
