@@ -1,7 +1,7 @@
 process SPECIES_REPRESENTATION {
 
     tag "${meta.primer}|${meta.db}"
-    label 'process_low'
+    label 'short_serial'
 
 
 

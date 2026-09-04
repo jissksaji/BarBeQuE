@@ -7,8 +7,8 @@ process VSEARCH_CLUSTER_FAST {
 
     conda "${moduleDir}/environment.yml"
     container "${workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-        ? 'https://depot.galaxyproject.org/singularity/vsearch:2.27.0--h6a68c12_0'
-        : 'quay.io/biocontainers/vsearch:2.27.0--h6a68c12_0'}"
+        ? 'https://depot.galaxyproject.org/singularity/vsearch:2.30.6--h0bb26bb_0'
+        : 'quay.io/biocontainers/vsearch:2.30.6--h0bb26bb_0'}"
 
     input:
     tuple val(meta), path(fa)

@@ -2,10 +2,9 @@ process MASK {
 
     tag "${meta.primer}|${meta.db}"
 
-    label 'low'
+    label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
-    container "python:3.14-slim"
 
     input:
     tuple val(meta), path(fasta)

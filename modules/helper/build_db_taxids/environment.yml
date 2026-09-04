@@ -2,6 +2,8 @@ name: build_db_taxids
 channels:
   - conda-forge
   - bioconda
-  - defaults
 dependencies:
+  - coreutils
   - gawk
+  - grep
+  - sed

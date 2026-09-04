@@ -3,6 +3,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - taxonkit
-  - python>=3.10
   - biopython
+  - coreutils
+  - gawk
+  - grep
+  - python=3.12
+  - sed
+  - taxonkit

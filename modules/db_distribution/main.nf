@@ -1,7 +1,7 @@
 process DB_DISTRIBUTION {
 
     tag "${meta.id}"
-    label 'process_low'
+    label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
 

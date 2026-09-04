@@ -2,7 +2,6 @@ name: parse_uc
 channels:
   - conda-forge
   - bioconda
-  - defaults
 dependencies:
-  - gawk
   - coreutils
+  - gawk

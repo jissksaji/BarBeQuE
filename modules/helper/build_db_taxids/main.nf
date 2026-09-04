@@ -1,7 +1,7 @@
 process BUILD_DB_TAXIDS {
 
     tag "${meta.id}"
-    label 'process_medium'
+    label 'medium_serial'
 
     conda "${moduleDir}/environment.yml"
 

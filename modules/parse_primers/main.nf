@@ -5,7 +5,6 @@ process PARSE_PRIMERS {
     label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
-    container "python:3.14-slim"
 
     input:
     tuple val(meta), path(primer_input)

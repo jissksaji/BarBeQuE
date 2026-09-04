@@ -3,9 +3,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python>=3.10
+  - coreutils
+  - numpy
   - pandas
   - plotly
-  - pip
-  - pip:
-      - taxidTools
+  - python=3.12
+  - sed
+  - taxidtools

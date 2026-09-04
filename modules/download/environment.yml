@@ -1,9 +1,10 @@
-name: cluster_consensus
+name: download
 channels:
   - conda-forge
-  - bioconda
 dependencies:
+  - bash
   - coreutils
+  - grep
+  - gzip
   - python=3.12
-  - sed
-  - taxidtools
+  - wget

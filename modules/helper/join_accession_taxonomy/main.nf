@@ -6,7 +6,7 @@ process JOIN_ACCESSION_TAXONOMY {
     //
 
     tag "${meta.primer}|${meta.db}"
-    label 'process_medium'
+    label 'medium_serial'
 
     conda "${moduleDir}/environment.yml"
 

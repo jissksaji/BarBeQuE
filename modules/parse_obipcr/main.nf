@@ -1,7 +1,7 @@
 process PARSE_OBIPCR {
 
     tag "${meta.primer}|${meta.db}"
-    label 'process_low'
+    label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
 

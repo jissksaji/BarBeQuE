@@ -9,7 +9,7 @@ process TAXONOMIC_COVERAGE {
     cache false
 
     tag "${meta.primer}|${meta.db}"
-    label 'medium_parllel'
+    label 'medium_parallel'
 
 
     conda "${moduleDir}/environment.yml"
