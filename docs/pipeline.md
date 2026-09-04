@@ -25,7 +25,7 @@ High-level flow:
 
 1. `DATABASE` resolves selected reference FASTAs.
 2. Optional `--taxid` filters each database to one taxon and its descendants.
-3. Optional `--custom_db_filter` cleans a custom database.
+3. Optional `--db_filter` cleans every selected database.
 4. `BARBEQUE` resolves primers. `--primer_set` downloads and `--input` FASTAs both pass through
    `PARSE_PRIMERS` into a samplesheet, which `INPUT_CHECK` then validates - see
    [primer_input.md](primer_input.md).

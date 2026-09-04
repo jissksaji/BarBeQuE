@@ -129,11 +129,6 @@
       "description": "",
       "default": "",
       "properties": {
-        "insilico_tool": {
-          "type": "string",
-          "description": "Tool used for in-silico PCR (currently only obipcr)",
-          "default": "obipcr"
-        },
         "mask": {
           "type": "boolean",
           "description": "Mask primer-binding regions in each amplicon",
@@ -171,19 +166,19 @@
           "maximum": 1.0,
           "description": "Minimum fraction of taxonomically assigned accessions in a cluster that must support a consensus assignment"
         },
-        "custom_db_filter_pattern": {
+        "db_filter_pattern": {
           "type": "string",
-          "description": "Regex pattern for filtering bad headers from custom DB"
+          "description": "Regex pattern for removing unwanted headers from selected databases"
         },
-        "custom_db_min_length": {
+        "db_filter_min_length": {
           "type": "integer",
-          "description": "Minimum sequence length for custom DB filtering. Must be used together with custom_db_max_length"
+          "description": "Minimum sequence length for database filtering. Must be used together with db_filter_max_length"
         },
-        "custom_db_max_length": {
+        "db_filter_max_length": {
           "type": "integer",
-          "description": "Maximum sequence length for custom DB filtering. Must be used together with custom_db_min_length"
+          "description": "Maximum sequence length for database filtering. Must be used together with db_filter_min_length"
         },
-        "custom_db_max_n": {
+        "db_filter_max_n": {
           "type": "integer",
           "description": "Maximum number of ambiguous bases allowed per sequence. Only applied when length filter is active"
         },
@@ -198,9 +193,9 @@
           "default": 3,
           "minimum": 0
         },
-        "custom_db_filter": {
+        "db_filter": {
           "type": "boolean",
-          "description": "Apply custom DB filtering",
+          "description": "Apply header and sequence filtering to every selected database",
           "default": false
         }
       },

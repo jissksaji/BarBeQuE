@@ -2,6 +2,8 @@ process DOWNLOAD_AND_COMBINE_DB {
     tag "${meta.db}"
     label 'medium_serial'
 
+    conda "${moduleDir}/environment.yml"
+
     input:
     tuple val(meta), val(urls)
 

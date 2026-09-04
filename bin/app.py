@@ -902,7 +902,7 @@ def load_obipcr_results(data_dir, run_stem):
 obipcr_df = load_obipcr_results(DATA_DIR, selected_stem)
 
 if obipcr_df.empty:
-    st.info("No OBI-PCR diagnostics found for this primer. Run the pipeline with --insilico_tool obipcr to enable.")
+    st.info("No OBI-PCR diagnostics found for this primer.")
 else:
     st.subheader("OBI-PCR Primer Diagnostics")
     st.markdown(

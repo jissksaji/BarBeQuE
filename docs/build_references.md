@@ -37,18 +37,27 @@ All installable databases are declared in `conf/resources.config`.
 - `mitofish`
 - `metafish`
 - `silva_ssu`
+- `silva_lsu`
+- `its2_global`
 
 `metafish` is downloaded from the MetaFish library CSV and converted to FASTA during installation.
 
-`silva_ssu` contains the combined SILVA SSU collection (16S and 18S). It is
-installed once instead of publishing the same source under two database IDs.
-The workflow normalizes SILVA-style accession headers with extra numeric
-suffixes during taxonomy lookup.
+`silva_ssu` contains the combined SILVA SSU collection (16S and 18S) and
+`silva_lsu` the matching LSU collection (23S and 28S). Each is installed once
+instead of publishing the same source under two database IDs. Both use the
+NR99, truncated export. The workflow normalizes SILVA-style accession headers
+with extra numeric suffixes during taxonomy lookup.
 
-`core_nt` remains a special case. It is a preformatted BLAST database and is not used as an in-silico-PCR FASTA through `--dbs`.
+Both SILVA URLs are pinned to `release_138_2` rather than the `current`
+symlink. `current` is not a stable target, and at the time of writing it
+returns 404 for every export file.
 
-Every installed sequence database has a `.fasta` filename. To add another
-database, copy an existing block in `conf/resources.config`:
+`its2_global` is the curated ITS2 Global reference set (Quaresma et al. 2024,
+*Scientific Data*, doi:10.1038/s41597-024-02962-5)
+
+`core_nt` remains a special case. still not yet implemented.
+
+To add another database, copy an existing block in `conf/resources.config`:
 
 ```groovy
 'example' {

@@ -17,15 +17,10 @@ BarBeQuE is a Nextflow DSL2 workflow. Process-level software is declared in the 
 | OBITools / OBITools4 | Default in-silico PCR engine (`obipcr`) | Boyer et al. 2016, Molecular Ecology Resources, DOI: [10.1111/1755-0998.12428](https://doi.org/10.1111/1755-0998.12428) |
 | VSEARCH | Dereplication and clustering | Rognes et al. 2016, PeerJ, DOI: [10.7717/peerj.2584](https://doi.org/10.7717/peerj.2584) |
 | SeqKit | Sequence summaries and FASTA filtering | Shen et al. 2016, PLOS ONE, DOI: [10.1371/journal.pone.0163962](https://doi.org/10.1371/journal.pone.0163962) |
-| SAMtools | FASTA indexing and sequence utilities | Li et al. 2009, Bioinformatics, DOI: [10.1093/bioinformatics/btp352](https://doi.org/10.1093/bioinformatics/btp352) |
-| HTSlib / SAMtools / BCFtools | Alignment/variant file utility stack used with SAMtools modules | Danecek et al. 2021, GigaScience, DOI: [10.1093/gigascience/giab008](https://doi.org/10.1093/gigascience/giab008) |
-| BLAST+ | BLAST database operations | Camacho et al. 2009, BMC Bioinformatics, DOI: [10.1186/1471-2105-10-421](https://doi.org/10.1186/1471-2105-10-421) |
 | TaxonKit | NCBI taxonomy lineage utilities | Shen and Xiong 2021, Journal of Genetics and Genomics, DOI: [10.1016/j.jgg.2021.03.006](https://doi.org/10.1016/j.jgg.2021.03.006) |
 | ETE Toolkit / ETE3 | Taxonomy and tree handling | Huerta-Cepas et al. 2016, Molecular Biology and Evolution, DOI: [10.1093/molbev/msw046](https://doi.org/10.1093/molbev/msw046) |
 | GrapeTree | Tree visualization / clustering helper dependency | Zhou et al. 2018, Genome Research, DOI: [10.1101/gr.232397.117](https://doi.org/10.1101/gr.232397.117) |
 | MultiQC | Report aggregation | Ewels et al. 2016, Bioinformatics, DOI: [10.1093/bioinformatics/btw354](https://doi.org/10.1093/bioinformatics/btw354) |
-| fastp | FASTQ preprocessing module | Chen et al. 2018, Bioinformatics, DOI: [10.1093/bioinformatics/bty560](https://doi.org/10.1093/bioinformatics/bty560) |
-| BioPerl | Primer disambiguation dependency | Stajich et al. 2002, Genome Research, DOI: [10.1101/gr.361602](https://doi.org/10.1101/gr.361602) |
 
 ## Python And Analysis Libraries
 

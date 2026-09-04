@@ -23,7 +23,7 @@ Database input is one of:
 - `--custom_db`: a user-provided FASTA.
 
 Before primer benchmarking, `DATABASE` can restrict records with `--taxid` and
-apply header/length cleaning with `--custom_db_filter`.
+apply header/length cleaning to every selected database with `--db_filter`.
 
 Taxonomy input is resolved from:
 
@@ -34,8 +34,8 @@ Taxonomy input is resolved from:
 
 1. Resolve primers into a common structure: primer id, forward primer, reverse primer, minimum amplicon length, maximum amplicon length.
 2. Combine every primer with every selected database.
-3. Run in-silico PCR with `--insilico_tool obipcr`.
-4. Parse raw OBI output when `obipcr` is used.
+3. Run in-silico PCR with OBI-PCR.
+4. Parse the raw OBI-PCR output.
 5. Optionally remove accessions listed by `--accession_blocklist` from both parsed results and amplicon FASTA.
 6. Drop primer/database pairs with no retained amplicons from downstream analysis.
 7. Optionally apply `--mask` to mimic single-end or paired-end read coverage.

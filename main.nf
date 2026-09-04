@@ -50,7 +50,12 @@ workflow {
       BUILD_REFERENCES()
   } else {
       DATABASE()
-      BARBEQUE(DATABASE.out.db, DATABASE.out.versions)
+      BARBEQUE(
+          DATABASE.out.db,
+          DATABASE.out.versions,
+          DATABASE.out.taxdump,
+          DATABASE.out.accession_taxonomy,
+      )
       if (params.interactive) {
           BARBEQUE.out.consensus.collect() | map { "${params.outdir}" } | INTERACTIVE_RESULTS
       }

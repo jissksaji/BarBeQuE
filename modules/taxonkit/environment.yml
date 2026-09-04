@@ -1,8 +1,0 @@
-name: taxonkit_lca
-channels:
-  - conda-forge
-  - bioconda
-  - defaults
-dependencies:
-  - taxonkit
-  - coreutils
