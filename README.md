@@ -4,6 +4,8 @@ BarBeQuE (BARcode BEnchmarking and QUality Evaluation) is a Nextflow DSL2 pipeli
 
 It predicts in-silico amplicons, clusters identical or near-identical barcode sequences, assigns consensus taxonomy, and reports whether a primer/database combination is likely to resolve the taxa you care about.
 
+![BarBeQuE pipeline overview](assets/barbeque_pipeline.jpg)
+
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-%E2%89%A524.10.5-23aa62.svg)](https://www.nextflow.io/)
 [![run with conda](http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda)](https://docs.conda.io/en/latest/)
 [![run with docker](https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker)](https://www.docker.com/)
