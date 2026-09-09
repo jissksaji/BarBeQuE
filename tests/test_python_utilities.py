@@ -209,7 +209,7 @@ class ParsePrimersTestCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         for name, content in files.items():
             (Path(tmp.name) / name).write_text(content)
-        paths = self.parse_primers.resolve_inputs(Path(tmp.name))
+        paths = self.parse_primers.find_input_files(Path(tmp.name))
         return self.parse_primers.collect_rows(paths, min_len, max_len)
 
 
@@ -345,7 +345,7 @@ class TestParsePrimersInputs(ParsePrimersTestCase):
             for name in ["a.fasta", "b.fa", "c.fna", "reads.fastq.gz", "notes.txt"]:
                 (Path(tmp) / name).write_text(">p_fwd\nAAAA\n>p_rev\nTTTT\n")
 
-            paths = self.parse_primers.resolve_inputs(Path(tmp))
+            paths = self.parse_primers.find_input_files(Path(tmp))
 
             self.assertEqual([p.name for p in paths], ["a.fasta", "b.fa", "c.fna"])
 
@@ -354,7 +354,7 @@ class TestParsePrimersInputs(ParsePrimersTestCase):
             fasta = Path(tmp) / "ITS2.fasta"
             fasta.write_text(">ITS2_fwd\nACGT\n>ITS2_rev\nTGCA\n")
 
-            paths = self.parse_primers.resolve_inputs(fasta)
+            paths = self.parse_primers.find_input_files(fasta)
             rows, _warnings, errors = self.parse_primers.collect_rows(paths, 100, 500)
 
             self.assertEqual(paths, [fasta])
@@ -366,7 +366,7 @@ class TestParsePrimersInputs(ParsePrimersTestCase):
             (Path(tmp) / "reads.fastq.gz").write_text("")
 
             with self.assertRaises(SystemExit):
-                self.parse_primers.resolve_inputs(Path(tmp))
+                self.parse_primers.find_input_files(Path(tmp))
 
     def test_is_fasta_distinguishes_fasta_from_a_samplesheet(self):
         with tempfile.TemporaryDirectory() as tmp:

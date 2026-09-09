@@ -1,29 +1,76 @@
 #!/usr/bin/env python3
-"""Turn primer FASTA input into the TSV samplesheet the pipeline already reads.
 
-`--input` is either a directory of primer FASTAs or a single primer FASTA.
-Every file is parsed into one or more `primer / fwd / rev / min / max` rows, so
-all three input forms (samplesheet, single FASTA, folder of FASTAs) converge on
-the same shape before anything else runs.
+"""
+Convert primer FASTA files into an OBIPCR-ready TSV samplesheet.
 
-Records are grouped by the *prefix* of their header - the text in front of an
-`fwd`/`forward`/`rev`/`reverse` token. Anything after the token is a variant
-label and is ignored, so `MA_FWD_1` and `MA_FWD_2` are both prefix `MA`. Each
-prefix becomes its own primer set, which is what keeps two different markers in
-one file (MA and POL) from being merged just because their primers happen to be
-the same length.
+How primers are handled:
+- Forward and reverse primers are identified from the FASTA headers.
+- Different primer sets/markers are kept separate based on their header prefix.
+- Primer variants of the same direction and same length are collapsed into one
+  IUPAC-degenerate primer.
+- If primer variants have different lengths, they are split into separate length
+  groups instead of being collapsed together.
+- Every forward-length group is paired with every reverse-length group, producing
+  separate TSV rows for each valid combination.
+- Existing IUPAC bases such as Y, R, and N are supported.
+- Invalid sequences, missing forward/reverse primers, and unrecognized directions
+  are reported as errors.
 
-Within a prefix, same-length variants collapse into one IUPAC-degenerate
-primer, since obipcr takes a single forward and a single reverse string. When
-the variants have different lengths they cannot be collapsed, so every forward
-is instead paired with every reverse and each combination is benchmarked
-separately - that is a warning, not an error.
+Best practices for primer FASTA files:
+- Keep primer headers simple and consistent.
+- Include the primer direction in every header using:
+    fwd, forward, rev, or reverse
+- Use clear marker/primer-set prefixes so unrelated primer sets are not merged.
 
-A file is rejected only when it cannot yield a runnable pair at all: it holds no
-FASTA records, a record has an empty sequence, a sequence contains a
-non-nucleotide character, a prefix is missing one of its two directions, or a
-record's direction cannot be determined. Every file is checked before anything
-is written, so all problems are reported in one go.
+  Good examples:
+      >ITS2_fwd1
+      >ITS2_fwd2
+      >ITS2_rev1
+      >ITS2_rev2
+
+      >MA_FWD
+      >MA_REV
+      >POL_FWD
+      >POL_REV
+
+- Variants of the same primer set should use the same prefix.
+
+  Example:
+      >ITS2_fwd1.1
+      >ITS2_fwd2.1
+      >ITS2_fwd3.1
+      >ITS2_rev1.1
+      >ITS2_rev2.1
+
+- Different markers can be stored in the same FASTA only if their prefixes are
+  clearly different.
+
+  Example:
+      >MA_FWD
+      >MA_REV
+      >POL_FWD
+      >POL_REV
+
+  MA and POL will be treated as separate primer sets.
+
+- Prefer one primer sequence per FASTA record.
+- Primer sequences may span multiple FASTA lines, but one line per primer is
+  easier to read and maintain.
+- Use only valid DNA/IUPAC nucleotide symbols:
+    A, C, G, T, R, Y, S, W, K, M, B, D, H, V, N
+- Avoid spaces, gaps, or other non-nucleotide characters inside sequences.
+- Do not use the same header for unrelated primer sets.
+- Primer variants of the same direction should normally have the same length.
+  If lengths differ, they will be processed as separate length groups and will
+  generate separate primer combinations in the TSV.
+- Keep filenames descriptive, for example:
+      ITS2.fasta
+      rbcL.fasta
+      fungal_ITS2.fasta
+      markers.fasta
+
+The output TSV contains:
+    primer    fwd    rev    min    max
 """
 
 import argparse
@@ -31,218 +78,760 @@ import re
 import sys
 from pathlib import Path
 
-# Same consensus table as bin/process_sample_sheet.py
-IUPAC = {
-    frozenset("A"): "A", frozenset("C"): "C", frozenset("G"): "G", frozenset("T"): "T",
-    frozenset("AG"): "R", frozenset("CT"): "Y", frozenset("CG"): "S", frozenset("AT"): "W",
-    frozenset("GT"): "K", frozenset("AC"): "M", frozenset("CGT"): "B", frozenset("AGT"): "D",
-    frozenset("ACT"): "H", frozenset("ACG"): "V", frozenset("ACGT"): "N",
-}
-EXPAND = {code: bases for bases, code in IUPAC.items()}
-VALID_BASES = set(IUPAC.values()) | {"U"}
 
-# The direction token must be delimited, so a prefix that merely contains
-# "rev" or "fwd" (e.g. TREV_fwd) is not mistaken for the token itself.
-DIRECTION_RE = re.compile(r"(?i)(?:^|[\s_.-])(fwd|forward|rev|reverse)(?:[\s_.-]|$)")
-UNSAFE_NAME_RE = re.compile(r'[\s/\\:*?"<>|]')
+# 1. IUPAC CODES
+
+# What each IUPAC symbol means.
+IUPAC_TO_BASES = {
+    "A": {"A"},
+    "C": {"C"},
+    "G": {"G"},
+    "T": {"T"},
+    "U": {"T"},
+
+    "R": {"A", "G"},
+    "Y": {"C", "T"},
+    "S": {"C", "G"},
+    "W": {"A", "T"},
+    "K": {"G", "T"},
+    "M": {"A", "C"},
+
+    "B": {"C", "G", "T"},
+    "D": {"A", "G", "T"},
+    "H": {"A", "C", "T"},
+    "V": {"A", "C", "G"},
+
+    "N": {"A", "C", "G", "T"},
+}
+
+
+# Reverse lookup:
+#
+# {"C", "T"} -> Y
+# {"A", "G"} -> R
+# etc.
+BASES_TO_IUPAC = {
+    frozenset({"A"}): "A",
+    frozenset({"C"}): "C",
+    frozenset({"G"}): "G",
+    frozenset({"T"}): "T",
+
+    frozenset({"A", "G"}): "R",
+    frozenset({"C", "T"}): "Y",
+    frozenset({"C", "G"}): "S",
+    frozenset({"A", "T"}): "W",
+    frozenset({"G", "T"}): "K",
+    frozenset({"A", "C"}): "M",
+
+    frozenset({"C", "G", "T"}): "B",
+    frozenset({"A", "G", "T"}): "D",
+    frozenset({"A", "C", "T"}): "H",
+    frozenset({"A", "C", "G"}): "V",
+
+    frozenset({"A", "C", "G", "T"}): "N",
+}
+
+
+VALID_BASES = set(IUPAC_TO_BASES.keys())
+
+
+# 2. SETTINGS
+
 FASTA_SUFFIXES = (".fa", ".fasta", ".fna")
 
-TSV_HEADER = ["primer", "fwd", "rev", "min", "max"]
+TSV_HEADER = [
+    "primer",
+    "fwd",
+    "rev",
+    "min",
+    "max"
+]
 
+
+# Recognizes:
+#
+# MA_FWD
+# MA_FORWARD
+# ITS2-short_fwd1.1
+# ITS2-short_rev3.2
+#
+# but does not simply match "fwd" or "rev" anywhere inside a word.
+DIRECTION_RE = re.compile(
+    r"(?i)"
+    r"(?:^|[\s_.-])"
+    r"(fwd|forward|rev|reverse)"
+    r"(?=\d|[\s_.-]|$)"
+)
+
+
+# 3. READ FASTA
 
 def read_fasta(path):
-    """Yield (header, sequence) pairs, joining multi-line sequences."""
-    header = None
-    parts = []
-    with open(path) as handle:
-        for line in handle:
-            line = line.strip()
-            if line.startswith(">"):
-                if header is not None:
-                    yield header, "".join(parts)
-                header = line[1:].strip()
-                parts = []
-            elif header is not None:
-                parts.append(line)
-        if header is not None:
-            yield header, "".join(parts)
+    """
+    Read a FASTA file.
 
+    Returns:
+        [
+            (header, sequence),
+            (header, sequence),
+            ...
+        ]
+    """
+
+    records = []
+
+    current_header = None
+    current_sequence = []
+
+    with open(path) as file:
+        for line in file:
+            line = line.strip()
+
+            # Ignore empty lines
+            if not line:
+                continue
+
+            # New FASTA record
+            if line.startswith(">"):
+                # Save previous record
+                if current_header is not None:
+                    sequence = "".join(current_sequence)
+
+                    records.append((current_header, sequence))
+
+                current_header = line[1:].strip()
+                current_sequence = []
+
+            else:
+                current_sequence.append(line)
+
+    # Save final record
+    if current_header is not None:
+        sequence = "".join(current_sequence)
+
+        records.append((current_header, sequence))
+
+    return records
+
+
+# 4. FIND PREFIX AND DIRECTION
 
 def split_header(header):
-    """Return (prefix, direction), where direction is 'fwd', 'rev' or None."""
+    """
+    Find the marker prefix and primer direction.
+
+    Examples:
+
+        MA_FWD
+            -> prefix = MA
+            -> direction = fwd
+
+        ITS2-short_fwd1.1
+            -> prefix = ITS2-short
+            -> direction = fwd
+
+        POL_REV
+            -> prefix = POL
+            -> direction = rev
+    """
+
     match = DIRECTION_RE.search(header)
-    if not match:
+
+    if match is None:
         return header, None
-    direction = "fwd" if match.group(1).lower() in ("fwd", "forward") else "rev"
-    return header[: match.start()].strip(" _.-"), direction
+
+    direction_text = match.group(1).lower()
+
+    if direction_text in ("fwd", "forward"):
+        direction = "fwd"
+    else:
+        direction = "rev"
+
+    # Everything before FWD/REV is the marker name.
+    prefix = header[:match.start()]
+
+    prefix = prefix.strip(" _.-")
+
+    return prefix, direction
 
 
-def collapse(seqs):
-    """Combine the letters at each position into a single IUPAC degenerate code."""
-    return "".join(
-        IUPAC[frozenset().union(*(EXPAND[seq[i].upper()] for seq in seqs))]
-        for i in range(len(seqs[0]))
-    )
+# 5. VALIDATE A PRIMER SEQUENCE
 
+def validate_sequence(header, sequence):
+    """
+    Return an error message if the primer sequence is invalid.
+    Otherwise return None.
+    """
 
-def bad_bases(seq):
-    """Characters in seq that are neither a base nor an IUPAC ambiguity code."""
-    return sorted({c for c in seq.upper() if c not in VALID_BASES})
+    if sequence == "":
+        return f"record '{header}' has an empty sequence"
 
+    sequence = sequence.upper()
 
-def by_length(seqs):
-    """Group sequences by length, in order of first appearance."""
-    groups = {}
-    for seq in seqs:
-        groups.setdefault(len(seq), []).append(seq)
-    return groups
+    invalid_characters = set()
 
+    for character in sequence:
+        if character not in VALID_BASES:
+            invalid_characters.add(character)
 
-def is_fasta(path):
-    """True when the first non-blank line starts with '>'."""
-    with open(path) as handle:
-        for line in handle:
-            if line.strip():
-                return line.startswith(">")
-    return False
+    if invalid_characters:
+        invalid_text = ", ".join(sorted(invalid_characters))
 
-
-def resolve_inputs(input_path):
-    """Expand --input into the list of primer FASTAs to parse."""
-    input_path = Path(input_path)
-    if not input_path.is_dir():
-        return [input_path]
-
-    paths = sorted(p for p in input_path.iterdir() if p.suffix.lower() in FASTA_SUFFIXES)
-    if not paths:
-        sys.exit(
-            f"No primer FASTA files ({', '.join(FASTA_SUFFIXES)}) found in {input_path} - "
-            "--input must be a primer FASTA, a directory of primer FASTAs, or a samplesheet."
-        )
-    return paths
-
-
-def group_by_prefix(records, path):
-    """Sort validated records into {prefix: {'fwd': [...], 'rev': [...]}}, or report why not."""
-    tagged = [(header, seq, split_header(header)) for header, seq in records]
-    untagged = [header for header, _seq, (_prefix, direction) in tagged if direction is None]
-
-    if untagged and not (len(untagged) == len(records) == 2):
-        return None, (
-            f"{path.name}: cannot tell which direction these records belong to - {untagged}. "
-            "Add an fwd/forward/rev/reverse token to the header, or reduce the file to a "
-            "single forward/reverse pair."
+        return (
+            f"record '{header}' contains invalid character(s): "
+            f"{invalid_text}"
         )
 
+    return None
+
+
+# 6. GROUP PRIMERS BY MARKER
+
+def group_primers(records, filename):
+    """
+    Group primers by marker prefix.
+
+    Example:
+
+        MA_FWD
+        MA_REV
+        POL_FWD
+        POL_REV
+
+    becomes:
+
+        MA:
+            fwd = [...]
+            rev = [...]
+
+        POL:
+            fwd = [...]
+            rev = [...]
+    """
+
     groups = {}
-    if untagged:
-        # No tokens anywhere and exactly one record per direction - unambiguous.
-        groups[""] = {"fwd": [records[0][1]], "rev": [records[1][1]]}
+
+    unlabelled_records = []
+
+    for header, sequence in records:
+        prefix, direction = split_header(header)
+
+        if direction is None:
+            unlabelled_records.append((header, sequence))
+
+            continue
+
+        if prefix not in groups:
+            groups[prefix] = {
+                "fwd": [],
+                "rev": []
+            }
+
+        groups[prefix][direction].append(sequence.upper())
+
+    # --------------------------------------------------------
+    # Special case:
+    #
+    # Exactly two primers and neither has FWD/REV labels.
+    #
+    # Assume:
+    # first = FWD
+    # second = REV
+    # --------------------------------------------------------
+
+    if len(unlabelled_records) == 2 and len(records) == 2:
+        first_sequence = unlabelled_records[0][1]
+        second_sequence = unlabelled_records[1][1]
+
+        groups = {
+            "": {
+                "fwd": [first_sequence.upper()],
+                "rev": [second_sequence.upper()]
+            }
+        }
+
         return groups, None
 
-    for _header, seq, (prefix, direction) in tagged:
-        groups.setdefault(prefix, {"fwd": [], "rev": []})[direction].append(seq)
+    # --------------------------------------------------------
+    # If some primer directions cannot be identified, fail.
+    # --------------------------------------------------------
 
-    for prefix, directions in groups.items():
-        if not directions["fwd"] or not directions["rev"]:
+    if unlabelled_records:
+        headers = []
+
+        for header, sequence in unlabelled_records:
+            headers.append(header)
+
+        return None, (
+            f"{filename}: could not determine FWD/REV "
+            f"for these primer(s): {headers}"
+        )
+
+    # --------------------------------------------------------
+    # Every marker needs FWD and REV
+    # --------------------------------------------------------
+
+    for prefix in groups:
+        forward_primers = groups[prefix]["fwd"]
+        reverse_primers = groups[prefix]["rev"]
+
+        if len(forward_primers) == 0 or len(reverse_primers) == 0:
             return None, (
-                f"{path.name}: prefix '{prefix}' has {len(directions['fwd'])} fwd and "
-                f"{len(directions['rev'])} rev - a primer set needs both."
+                f"{filename}: marker '{prefix}' has "
+                f"{len(forward_primers)} fwd and "
+                f"{len(reverse_primers)} rev - "
+                f"a primer set needs both."
             )
+
     return groups, None
 
 
-def rows_from_file(path, min_len, max_len):
-    """Parse one primer FASTA into (rows, warnings, errors)."""
-    records = list(read_fasta(path))
-    if not records:
-        return [], [], [f"{path.name}: no FASTA records found - is this really a FASTA file?"]
+# 7. GROUP SEQUENCES BY LENGTH
 
-    for header, seq in records:
-        if not seq:
-            return [], [], [f"{path.name}: record '{header}' has an empty sequence."]
-        bad = bad_bases(seq)
-        if bad:
-            return [], [], [
-                f"{path.name}: record '{header}' contains non-nucleotide character(s) "
-                f"{', '.join(bad)} - only ACGT/U and IUPAC ambiguity codes are allowed."
-            ]
+def group_by_length(sequences):
+    """
+    Example:
 
-    groups, error = group_by_prefix(records, path)
-    if error:
-        return [], [], [error]
+        21 bp primer
+        21 bp primer
+        23 bp primer
+
+    becomes:
+
+        21:
+            primer
+            primer
+
+        23:
+            primer
+    """
+
+    groups = {}
+
+    for sequence in sequences:
+        length = len(sequence)
+
+        if length not in groups:
+            groups[length] = []
+
+        groups[length].append(sequence)
+
+    return groups
+
+
+# 8. COLLAPSE SAME-LENGTH PRIMERS
+
+def collapse_iupac(sequences):
+    """
+    Collapse same-length primer variants into one IUPAC primer.
+
+    Example:
+
+        ACGT
+        ACCT
+
+    position 3 contains:
+        G + C
+
+    G/C = S
+
+    result:
+        ACST
+    """
+
+    sequence_length = len(sequences[0])
+
+    collapsed_sequence = ""
+
+    # Go through each nucleotide position
+    for position in range(sequence_length):
+        bases_at_position = set()
+
+        # Look at this position in every primer
+        for sequence in sequences:
+            symbol = sequence[position].upper()
+
+            # Expand IUPAC symbols.
+            #
+            # Example:
+            # Y -> {C, T}
+            # R -> {A, G}
+            # A -> {A}
+            possible_bases = IUPAC_TO_BASES[symbol]
+
+            bases_at_position.update(possible_bases)
+
+        # Convert the combined bases back to IUPAC.
+        iupac_code = BASES_TO_IUPAC[
+            frozenset(bases_at_position)
+        ]
+
+        collapsed_sequence += iupac_code
+
+    return collapsed_sequence
+
+
+# 9. CONVERT ONE FASTA INTO TSV ROWS
+
+def process_fasta(path, min_length, max_length):
+    """
+    Process one primer FASTA.
+
+    Returns:
+
+        rows
+        warnings
+        errors
+    """
 
     rows = []
     warnings = []
-    stem = UNSAFE_NAME_RE.sub("_", path.stem)
-    multiple_prefixes = len(groups) > 1
+    errors = []
 
-    for prefix, directions in groups.items():
-        fwd_groups = by_length(directions["fwd"])
-        rev_groups = by_length(directions["rev"])
-        combinations = [
-            (collapse(fwd), collapse(rev))
-            for fwd in fwd_groups.values()
-            for rev in rev_groups.values()
-        ]
+    # --------------------------------------------------------
+    # Read FASTA
+    # --------------------------------------------------------
 
-        base = f"{stem}_{UNSAFE_NAME_RE.sub('_', prefix)}" if multiple_prefixes and prefix else stem
-        if len(combinations) > 1:
+    records = read_fasta(path)
+
+    if len(records) == 0:
+        errors.append(f"{path.name}: no FASTA records found")
+
+        return rows, warnings, errors
+
+    # --------------------------------------------------------
+    # Validate every primer sequence
+    # --------------------------------------------------------
+
+    for header, sequence in records:
+        error = validate_sequence(header, sequence)
+
+        if error is not None:
+            errors.append(f"{path.name}: {error}")
+
+    # Stop processing this file if sequences are invalid.
+    if errors:
+        return rows, warnings, errors
+
+    # --------------------------------------------------------
+    # Separate markers and FWD/REV primers
+    # --------------------------------------------------------
+
+    groups, error = group_primers(records, path.name)
+
+    if error is not None:
+        errors.append(error)
+
+        return rows, warnings, errors
+
+    # --------------------------------------------------------
+    # Process each marker separately
+    # --------------------------------------------------------
+
+    for prefix in groups:
+        forward_primers = groups[prefix]["fwd"]
+        reverse_primers = groups[prefix]["rev"]
+
+        # Group variants by length.
+        forward_length_groups = group_by_length(forward_primers)
+
+        reverse_length_groups = group_by_length(reverse_primers)
+
+        # --------------------------------------------
+        # Warn if multiple lengths exist.
+        # --------------------------------------------
+
+        if (
+            len(forward_length_groups) > 1
+            or
+            len(reverse_length_groups) > 1
+        ):
             warnings.append(
-                f"{path.name}: prefix '{prefix}' could not be collapsed - fwd lengths "
-                f"{sorted(fwd_groups)}, rev lengths {sorted(rev_groups)}. Benchmarking "
-                f"{len(combinations)} combinations separately."
+                f"{path.name}: marker '{prefix}' contains "
+                f"different primer lengths. "
+                f"FWD lengths: {sorted(forward_length_groups.keys())}; "
+                f"REV lengths: {sorted(reverse_length_groups.keys())}. "
+                f"Each length combination will be benchmarked separately."
             )
 
-        for index, (fwd, rev) in enumerate(combinations, start=1):
-            name = f"{base}_{index}" if len(combinations) > 1 else base
-            rows.append({"primer": name, "fwd": fwd, "rev": rev, "min": min_len, "max": max_len})
+        # --------------------------------------------
+        # Collapse every FWD length group.
+        # --------------------------------------------
 
-    return rows, warnings, []
+        collapsed_forwards = []
+
+        for length in forward_length_groups:
+            sequences = forward_length_groups[length]
+
+            collapsed = collapse_iupac(sequences)
+
+            collapsed_forwards.append(collapsed)
+
+        # --------------------------------------------
+        # Collapse every REV length group.
+        # --------------------------------------------
+
+        collapsed_reverses = []
+
+        for length in reverse_length_groups:
+            sequences = reverse_length_groups[length]
+
+            collapsed = collapse_iupac(sequences)
+
+            collapsed_reverses.append(collapsed)
+
+        # --------------------------------------------
+        # Build the primer-set name.
+        # --------------------------------------------
+
+        file_name = make_name_safe(path.stem)
+
+        if len(groups) == 1:
+            primer_name = file_name
+
+        else:
+            safe_prefix = make_name_safe(prefix)
+
+            primer_name = (f"{file_name}_{safe_prefix}")
+
+        # --------------------------------------------
+        # Make every FWD × REV length combination.
+        # --------------------------------------------
+
+        combinations = []
+
+        for forward in collapsed_forwards:
+            for reverse in collapsed_reverses:
+                combinations.append((forward, reverse))
+
+        # --------------------------------------------
+        # Add rows to output samplesheet.
+        # --------------------------------------------
+
+        combination_number = 1
+
+        for forward, reverse in combinations:
+            if len(combinations) == 1:
+                row_name = primer_name
+
+            else:
+                row_name = (f"{primer_name}_{combination_number}")
+
+            row = {
+                "primer": row_name,
+                "fwd": forward,
+                "rev": reverse,
+                "min": min_length,
+                "max": max_length,
+            }
+
+            rows.append(row)
+
+            combination_number += 1
+
+    return rows, warnings, errors
 
 
-def collect_rows(paths, min_len, max_len):
-    """Parse every primer FASTA, collecting all problems rather than stopping at the first."""
-    rows, warnings, errors = [], [], []
+# 10. FIND INPUT FASTA FILES
+
+# Characters that are unsafe in a file or directory name. Primer names
+# become output paths later, so they are replaced with "_".
+UNSAFE_NAME_RE = re.compile(r'[\s/\\:*?"<>|]')
+
+
+def make_name_safe(name):
+    """Replace path-unsafe characters in a primer or file name with '_'."""
+
+    return UNSAFE_NAME_RE.sub("_", name)
+
+
+def is_fasta(path):
+    """
+    True when the first non-blank line starts with ">".
+
+    Used to tell a primer FASTA apart from a TSV samplesheet.
+    """
+
+    with open(path) as file:
+        for line in file:
+            if line.strip():
+                return line.startswith(">")
+
+    return False
+
+
+def find_input_files(input_path):
+    """
+    --input may be:
+
+        one FASTA
+
+    or:
+
+        a directory containing FASTA files
+    """
+
+    input_path = Path(input_path)
+
+    # Single file
+    if input_path.is_file():
+        return [input_path]
+
+    # Directory
+    if input_path.is_dir():
+        fasta_files = []
+
+        for path in sorted(input_path.iterdir()):
+            if path.suffix.lower() in FASTA_SUFFIXES:
+                fasta_files.append(path)
+
+        if len(fasta_files) == 0:
+            sys.exit(
+                f"ERROR: No FASTA files found in "
+                f"{input_path}"
+            )
+
+        return fasta_files
+
+    sys.exit(
+        f"ERROR: Input does not exist: "
+        f"{input_path}"
+    )
+
+
+# 11. PROCESS EVERY FASTA
+
+def collect_rows(paths, min_length, max_length):
+    """
+    Process every primer FASTA and gather the results.
+
+    Every file is checked before anything is written, so all problems are
+    reported in one go. If any file failed, no rows are returned at all -
+    a typo can never silently drop a primer set from the comparison.
+    """
+
+    all_rows = []
+    all_warnings = []
+    all_errors = []
+
     for path in paths:
-        file_rows, file_warnings, file_errors = rows_from_file(Path(path), min_len, max_len)
-        rows.extend(file_rows)
-        warnings.extend(file_warnings)
-        errors.extend(file_errors)
-
-    # Nothing is benchmarked while any file is unusable, so a typo can never
-    # silently drop a primer from the comparison.
-    return ([], warnings, errors) if errors else (rows, warnings, errors)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", required=True, help="Primer FASTA, or directory of primer FASTAs")
-    parser.add_argument("--min", required=True, type=int, help="Global minimum amplicon length")
-    parser.add_argument("--max", required=True, type=int, help="Global maximum amplicon length")
-    parser.add_argument("--out", required=True, help="Output samplesheet (TSV)")
-    parser.add_argument("--warnings", help="Optional file to write parser warnings to")
-    args = parser.parse_args()
-
-    paths = resolve_inputs(args.input)
-    rows, warnings, errors = collect_rows(paths, args.min, args.max)
-
-    for warning in warnings:
-        print(f"WARNING: {warning}", file=sys.stderr)
-    if args.warnings:
-        Path(args.warnings).write_text("".join(f"{warning}\n" for warning in warnings))
-
-    if errors:
-        detail = "".join(f"\n  {error}" for error in errors)
-        sys.exit(
-            f"{len(errors)} of {len(paths)} primer FASTA file(s) could not be used:{detail}\n\n"
-            "No primer sets were run. Fix these and rerun."
+        rows, warnings, errors = process_fasta(
+            Path(path),
+            min_length,
+            max_length
         )
 
-    with open(args.out, "w") as handle:
-        handle.write("\t".join(TSV_HEADER) + "\n")
+        all_rows.extend(rows)
+        all_warnings.extend(warnings)
+        all_errors.extend(errors)
+
+    if all_errors:
+        return [], all_warnings, all_errors
+
+    return all_rows, all_warnings, all_errors
+
+
+# 12. WRITE TSV
+
+def write_tsv(rows, output_file):
+    with open(output_file, "w") as file:
+        file.write("\t".join(TSV_HEADER) + "\n")
+
         for row in rows:
-            handle.write("\t".join(str(row[column]) for column in TSV_HEADER) + "\n")
+            values = []
+
+            for column in TSV_HEADER:
+                values.append(str(row[column]))
+
+            file.write("\t".join(values) + "\n")
+
+
+# 13. MAIN
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Primer FASTA or directory of primer FASTAs"
+    )
+
+    parser.add_argument(
+        "--min",
+        required=True,
+        type=int,
+        help="Minimum amplicon length"
+    )
+
+    parser.add_argument(
+        "--max",
+        required=True,
+        type=int,
+        help="Maximum amplicon length"
+    )
+
+    parser.add_argument("--out", required=True, help="Output TSV samplesheet")
+
+    parser.add_argument("--warnings", help="Optional warnings file")
+
+    args = parser.parse_args()
+
+    # --------------------------------------------------------
+    # Find FASTA files
+    # --------------------------------------------------------
+
+    fasta_files = find_input_files(args.input)
+
+    # --------------------------------------------------------
+    # Process every FASTA
+    # --------------------------------------------------------
+
+    all_rows, all_warnings, all_errors = collect_rows(fasta_files, args.min, args.max)
+
+    # --------------------------------------------------------
+    # Print warnings
+    # --------------------------------------------------------
+
+    for warning in all_warnings:
+        print("WARNING:", warning, file=sys.stderr)
+
+    # Optional warning file
+    if args.warnings:
+        with open(args.warnings, "w") as file:
+            for warning in all_warnings:
+                file.write(warning + "\n")
+
+    # --------------------------------------------------------
+    # If any FASTA failed, write NO samplesheet.
+    # --------------------------------------------------------
+
+    if all_errors:
+        print("\nERROR: Primer parsing failed.", file=sys.stderr)
+
+        for error in all_errors:
+            print(
+                f"  - {error}",
+                file=sys.stderr
+            )
+
+        print("\nNo primer samplesheet was created.", file=sys.stderr)
+
+        sys.exit(1)
+
+    # --------------------------------------------------------
+    # Everything passed → write output
+    # --------------------------------------------------------
+
+    write_tsv(all_rows, args.out)
+
+    print(
+        f"Created {args.out} "
+        f"with {len(all_rows)} primer set(s)."
+    )
 
 
 if __name__ == "__main__":
