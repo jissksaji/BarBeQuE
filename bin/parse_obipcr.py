@@ -1,200 +1,223 @@
 #!/usr/bin/env python3
-import sys
-import json
-import re
+
 import argparse
+import csv
+import json
 
-# Expected GC contribution of each IUPAC nucleotide.  Fractional values make
-# GC% meaningful for collapsed/degenerate primers while remaining identical
-# to the usual calculation for unambiguous A/C/G/T sequences.
-IUPAC_GC_FRACTION = {
-    'A': 0.0, 'C': 1.0, 'G': 1.0, 'T': 0.0, 'U': 0.0,
-    'R': 0.5, 'Y': 0.5, 'S': 1.0, 'W': 0.0, 'K': 0.5, 'M': 0.5,
-    'B': 2.0 / 3.0, 'D': 1.0 / 3.0, 'H': 1.0 / 3.0,
-    'V': 2.0 / 3.0, 'N': 0.5,
+
+FIELDS = [
+    "Sequence_ID",
+    "Amplicon_Length",
+    "Forward_Primer",
+    "Forward_Match",
+    "Forward_Errors",
+    "Forward_Mismatch_Positions_Primer",
+    "Forward_Mismatch_From_3Prime",
+    "Forward_Primer_GC",
+    "Forward_Match_GC",
+    "Reverse_Primer",
+    "Reverse_Match",
+    "Reverse_Errors",
+    "Reverse_Mismatch_Positions_Primer",
+    "Reverse_Mismatch_From_3Prime",
+    "Reverse_Primer_GC",
+    "Reverse_Match_GC",
+    "Amplicon_GC",
+    "Amplicon_Sequence"
+]
+
+
+IUPAC = {
+    "A": "A",
+    "C": "C",
+    "G": "G",
+    "T": "T",
+    "R": "AG",
+    "Y": "CT",
+    "S": "GC",
+    "W": "AT",
+    "K": "GT",
+    "M": "AC",
+    "B": "CGT",
+    "D": "AGT",
+    "H": "ACT",
+    "V": "ACG",
+    "N": "ACGT"
 }
 
-def parse_fasta_header(header_line):
-    """Parses a single OBI ecoPCR fasta header."""
-    header_line = header_line.strip()
-    if not header_line.startswith(">"):
-        return None
-    
-    parts = header_line.split(" ", 1)
-    if len(parts) != 2:
-        return None
-        
-    seq_info = parts[0][1:]
-    json_str = parts[1]
-    
-    match = re.match(r"(.+)_sub\[(\d+)\.\.(\d+)\]", seq_info)
-    if not match:
-        return None
-        
-    seq_id = match.group(1)
-    start_pos = int(match.group(2))
-    end_pos = int(match.group(3))
-    
-    try:
-        metadata = json.loads(json_str)
-    except json.JSONDecodeError:
-        return None
-        
-    return {
-        "seq_id": seq_id,
-        "start_pos": start_pos,
-        "end_pos": end_pos,
-        "metadata": metadata
-    }
 
+# Calculate GC percentage
 def calculate_gc(sequence):
-    """Calculate expected GC%, including fractional IUPAC ambiguity."""
-    if not sequence: return "0.0"
-    seq_upper = sequence.upper()
-    gc_count = sum(IUPAC_GC_FRACTION.get(base, 0.0) for base in seq_upper)
-    return str(round((gc_count / len(sequence)) * 100, 2))
 
-IUPAC_CODES = {
-    'A': {'A'}, 'C': {'C'}, 'G': {'G'}, 'T': {'T'}, 'U': {'U', 'T'},
-    'R': {'A', 'G'}, 'Y': {'C', 'T'}, 'S': {'G', 'C'}, 'W': {'A', 'T'},
-    'K': {'G', 'T'}, 'M': {'A', 'C'}, 'B': {'C', 'G', 'T'},
-    'D': {'A', 'G', 'T'}, 'H': {'A', 'C', 'T'}, 'V': {'A', 'C', 'G'},
-    'N': {'A', 'C', 'G', 'T'}
-}
+    if sequence == "":
+        raise ValueError("Sequence is empty")
 
-def is_iupac_match(primer_base, match_base):
-    """Return whether a primer pattern base matches a reference base.
+    gc = 0
 
-    IUPAC ambiguity is directional here: ambiguity codes in the primer expand
-    the bases it can bind, while an ambiguous base in the reference sequence
-    is counted as an OBI-PCR error because its actual nucleotide is unknown.
-    """
-    primer_bases = IUPAC_CODES.get(
-        primer_base.upper(),
-        {primer_base.upper()},
-    )
-    match_base = match_base.upper()
-    return match_base in {"A", "C", "G", "T"} and match_base in primer_bases
+    for base in sequence.upper():
+
+        if base not in IUPAC:
+            raise ValueError(f"Unknown DNA character: {base}")
+
+        bases = IUPAC[base]
+
+        for possible_base in bases:
+            if possible_base == "G" or possible_base == "C":
+                gc += 1 / len(bases)
+
+    return round(gc / len(sequence) * 100, 2)
 
 
-def mismatch_positions(primer, match_seq):
-    """Return 1-based mismatch positions from the primer's 5' and 3' ends."""
-    primer = primer.upper()
-    match_seq = match_seq.upper()
-    length = min(len(primer), len(match_seq))
-    indices = [
-        i
-        for i in range(length)
-        if not is_iupac_match(primer[i], match_seq[i])
-    ]
-    return (
-        [i + 1 for i in indices],
-        [length - i for i in indices],
-    )
+# Find mismatch positions
+def find_mismatches(primer, match):
 
-def process_obipcr(input_file, output_file):
-    records = []
+    if len(primer) != len(match):
+        raise ValueError(
+            f"Primer and match have different lengths: "
+            f"{len(primer)} vs {len(match)}"
+        )
 
-    with open(input_file, 'r') as infile:
-        current_header = None
-        current_seq = []
+    positions = []
+    positions_3prime = []
 
-        def flush_record(header_line, seq):
-            parsed = parse_fasta_header(header_line)
-            if not parsed:
-                return
+    for i in range(len(primer)):
 
-            seq_id = parsed["seq_id"]
-            start_pos = parsed["start_pos"]
-            end_pos = parsed["end_pos"]
-            amplicon_length = end_pos - start_pos + 1
-            meta = parsed["metadata"]
+        primer_base = primer[i].upper()
+        match_base = match[i].upper()
 
-            fw_errors = meta.get("forward_error", 0)
-            rv_errors = meta.get("reverse_error", 0)
-            # obipcr echoes the primer exactly as it was given, so it still carries the
-            # '#' 3'-clamp markers added by --obipcr_fixed_3prime. Strip them, otherwise
-            # they shift every position against the match and corrupt the primer metrics.
-            fw_primer = meta.get("forward_primer", "").replace("#", "")
-            fw_match = meta.get("forward_match", "")
-            rv_primer = meta.get("reverse_primer", "").replace("#", "")
-            rv_match = meta.get("reverse_match", "")
+        if primer_base not in IUPAC:
+            raise ValueError(f"Unknown primer character: {primer_base}")
 
-            fw_mm_positions, fw_mm_3prime_positions = mismatch_positions(fw_primer, fw_match)
-            rv_mm_positions, rv_mm_3prime_positions = mismatch_positions(rv_primer, rv_match)
-            fw_mm_primer = ",".join(map(str, fw_mm_positions))
-            rv_mm_primer = ",".join(map(str, rv_mm_positions))
-            fw_mm_3prime = ",".join(map(str, fw_mm_3prime_positions))
-            rv_mm_3prime = ",".join(map(str, rv_mm_3prime_positions))
+        if match_base not in IUPAC:
+            raise ValueError(f"Unknown match character: {match_base}")
 
-            row = [
-                seq_id,
-                str(amplicon_length),
-                fw_primer,
-                fw_match,
-                str(fw_errors),
-                fw_mm_primer if fw_mm_primer else "None",
-                fw_mm_3prime if fw_mm_3prime else "None",
-                calculate_gc(fw_primer),
-                calculate_gc(fw_match),
+        if match_base not in IUPAC[primer_base]:
+            positions.append(str(i + 1))
+            positions_3prime.append(str(len(primer) - i))
 
-                rv_primer,
-                rv_match,
-                str(rv_errors),
-                rv_mm_primer if rv_mm_primer else "None",
-                rv_mm_3prime if rv_mm_3prime else "None",
-                calculate_gc(rv_primer),
-                calculate_gc(rv_match),
-                calculate_gc(seq),
-                seq
-            ]
-            records.append({"seq_id": seq_id, "amplicon_length": amplicon_length, "row": row})
+    if len(positions) == 0:
+        return "None", "None"
 
-        for line in infile:
+    return ",".join(positions), ",".join(positions_3prime)
+
+
+def parse_fasta(input_fasta, output_tsv):
+
+    with open(input_fasta, "r") as fasta, open(output_tsv, "w", newline="") as out:
+
+        writer = csv.writer(out, delimiter="\t")
+        writer.writerow(FIELDS)
+
+        sequence = ""
+        data = None
+
+        for line in fasta:
             line = line.strip()
-            if not line: continue
+
+            # Header line
             if line.startswith(">"):
-                if current_header:
-                    flush_record(current_header, "".join(current_seq))
-                current_header = line
-                current_seq = []
+
+                # Write previous record
+                if data is not None:
+                    data.append(calculate_gc(sequence))
+                    data.append(sequence)
+                    writer.writerow(data)
+
+                # First word of the header
+                first_word = line.split(" ")[0]
+
+                if "_sub[" not in first_word or ".." not in first_word:
+                    raise ValueError(f"Malformed FASTA header: {line}")
+
+                # Remove >
+                first_word = first_word.replace(">", "")
+                # Sequence ID
+                sequence_id = first_word.split("_sub[")[0]
+                # Get positions
+                positions = first_word.split("_sub[")[1]
+                positions = positions.replace("]", "")
+
+                start = int(positions.split("..")[0])
+                end = int(positions.split("..")[1])
+
+                # Calculate amplicon length
+                amplicon_length = end - start + 1
+
+                # Everything after the first space is metadata
+                metadata_text = line.split(" ", 1)[1]
+                metadata = json.loads(metadata_text)
+
+                #remove the # if the primers are clamped
+                forward_primer = metadata["forward_primer"].replace("#", "")
+                forward_match = metadata["forward_match"]
+                forward_errors = metadata["forward_error"]
+
+                reverse_primer = metadata["reverse_primer"].replace("#", "")
+                reverse_match = metadata["reverse_match"]
+                reverse_errors = metadata["reverse_error"]
+
+                # Calculate mismatch positions
+                forward_mismatch, forward_mismatch_3prime = find_mismatches(
+                    forward_primer,
+                    forward_match
+                )
+
+                reverse_mismatch, reverse_mismatch_3prime = find_mismatches(
+                    reverse_primer,
+                    reverse_match
+                )
+
+                # Create TSV row
+                data = [
+                    sequence_id,
+                    amplicon_length,
+
+                    forward_primer,
+                    forward_match,
+                    forward_errors,
+                    forward_mismatch,
+                    forward_mismatch_3prime,
+                    calculate_gc(forward_primer),
+                    calculate_gc(forward_match),
+
+                    reverse_primer,
+                    reverse_match,
+                    reverse_errors,
+                    reverse_mismatch,
+                    reverse_mismatch_3prime,
+                    calculate_gc(reverse_primer),
+                    calculate_gc(reverse_match)
+                ]
+
+                sequence = ""
+
             else:
-                current_seq.append(line)
+                sequence += line
 
-        if current_header:
-            flush_record(current_header, "".join(current_seq))
+        # Write final record
+        if data is not None:
+            data.append(calculate_gc(sequence))
+            data.append(sequence)
+            writer.writerow(data)
 
-    with open(output_file, 'w') as outfile:
-        headers = [
-            "Sequence_ID",
-            "Amplicon_Length",
-            "Forward_Primer",
-            "Forward_Match",
-            "Forward_Errors",
-            "Forward_Mismatch_Positions_Primer",
-            "Forward_Mismatch_From_3Prime",
-            "Forward_Primer_GC",
-            "Forward_Match_GC",
-            "Reverse_Primer",
-            "Reverse_Match",
-            "Reverse_Errors",
-            "Reverse_Mismatch_Positions_Primer",
-            "Reverse_Mismatch_From_3Prime",
-            "Reverse_Primer_GC",
-            "Reverse_Match_GC",
-            "Amplicon_GC",
-            "Amplicon_Sequence"
-        ]
-        outfile.write("\t".join(headers) + "\n")
 
-        for r in records:
-            outfile.write("\t".join(r["row"]) + "\n")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "input",
+        help="OBI-PCR FASTA file"
+    )
+    parser.add_argument(
+        "output",
+        help="Output TSV file"
+    )
+    args = parser.parse_args()
+
+    parse_fasta(
+        args.input,
+        args.output
+    )
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Parse OBI ecoPCR output to TSV.")
-    parser.add_argument("input", help="Input fasta-like file from ecoPCR")
-    parser.add_argument("output", help="Output TSV file")
-    args = parser.parse_args()
-    
-    process_obipcr(args.input, args.output)
-    print(f"Extraction complete. Results saved to {args.output}")
+    main()
