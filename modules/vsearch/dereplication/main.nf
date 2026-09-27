@@ -5,6 +5,9 @@ process VSEARCH_DEREPLICATION {
     label 'short_serial'
 
     conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/vsearch:2.30.6--h0bb26bb_0' :
+        'quay.io/biocontainers/vsearch:2.30.6--h0bb26bb_0' }"
 
     input:
     tuple val(meta), path(fasta)

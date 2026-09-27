@@ -5,6 +5,9 @@ process DB_FILTER {
     label 'medium_parallel'
 
     conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/seqkit:2.13.0--he881be0_0' :
+        'quay.io/biocontainers/seqkit:2.13.0--he881be0_0' }"
 
     input:
     tuple val(meta), path(db)

@@ -9,6 +9,9 @@ process JOIN_ACCESSION_TAXONOMY {
     label 'medium_serial'
 
     conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/gawk:5.3.1' :
+        'quay.io/biocontainers/gawk:5.3.1' }"
 
     input:
     tuple val(meta), path(cluster_accessions), path(master_lookup)
