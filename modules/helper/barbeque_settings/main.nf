@@ -1,4 +1,7 @@
 process BARBEQUE_SETTINGS {
+    label 'short_serial'
+
+    conda "${moduleDir}/environment.yml"
 
     input:
     val(primers)    // every primer meta of the run, one per primer x database
