@@ -7,14 +7,24 @@ import groovy.json.JsonOutput
 class WorkflowPipeline {
 
     //
+    // Is a true/false parameter switched on? Nextflow passes `--mask false` from the
+    // command line as the text "false", and any non-empty text counts as true in an
+    // if, so `if (params.mask)` would switch masking ON. Converting through the text
+    // works for real true/false values from nextflow.config and for command-line text.
+    //
+    public static boolean enabled(value) {
+        return value.toString().toBoolean()
+    }
+
+    //
     // Check and validate parameters
     //
     public static void initialise( params, log) {
-        if (params.build_references && !params.reference_base) {
+        if (enabled(params.build_references) && !params.reference_base) {
             log.error '--build_references requires --reference_base'
             System.exit(1)
         }
-         if (params.list_dbs) {
+         if (enabled(params.list_dbs)) {
             println('Available databases:')
             println('===========================')
             params.references.databases.keySet().each { db ->
@@ -24,7 +34,7 @@ class WorkflowPipeline {
             }
             System.exit(1)
         }
-        if (params.list_primers) {
+        if (enabled(params.list_primers)) {
             def catalog
             try {
                 catalog = PrimerCatalog.fetchCatalog()
@@ -36,6 +46,11 @@ class WorkflowPipeline {
             println(JsonOutput.prettyPrint(JsonOutput.toJson(catalog)))
             System.exit(1)
         }
+        if (!params.dbs && !params.custom_db && !enabled(params.build_references)) {
+            def options = params.references.databases.findAll { _, db -> !db.prebuilt }.keySet()
+            log.error("No database selected. Choose one with --dbs <name>: ${options.join(', ')}\nOr provide your own FASTA with --custom_db <file.fasta>")
+            System.exit(1)
+        }
         if (params.dbs && !params.run_name) {
             log.info 'Must provide a run_name (--run_name)'
             System.exit(1)
@@ -44,7 +59,7 @@ class WorkflowPipeline {
             log.info 'Provide either --input or --primer_set, not both'
             System.exit(1)
         }
-        if (!params.input && !params.primer_set && !params.build_references) {
+        if (!params.input && !params.primer_set && !enabled(params.build_references)) {
             log.info "Pipeline requires a sample sheet / primer FASTA directory (--input) or a named primer set (--primer_set) as input"
             System.exit(1)
         }
