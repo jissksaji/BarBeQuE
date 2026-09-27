@@ -1,3 +1,0 @@
-# Accessions to remove after OBI-PCR parsing
-A1
-A3.1
