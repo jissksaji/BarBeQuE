@@ -2,7 +2,6 @@ process VSEARCH_CLUSTER_FAST {
     tag "${meta.primer}|${meta.db}"
 
 
-
     label 'short_parallel'
 
     conda "${moduleDir}/environment.yml"
