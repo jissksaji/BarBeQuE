@@ -1,8 +1,0 @@
-name: amplicon_length
-channels:
-  - conda-forge
-  - bioconda
-dependencies:
-  - coreutils
-  - sed
-  - seqkit=2.13.0
