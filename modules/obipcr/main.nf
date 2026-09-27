@@ -38,7 +38,7 @@ process OBIPCR_INSILICOPCR {
 
     def fwd_primer = clamp_3prime(meta.fwd, fixed_3prime)
     def rev_primer = clamp_3prime(meta.rev, fixed_3prime)
-    def flanking_arg = params.obipcr_only_complete_flanking ? '--only-complete-flanking' : ''
+    def flanking_arg = WorkflowPipeline.enabled(params.obipcr_only_complete_flanking) ? '--only-complete-flanking' : ''
 
     """
     obipcr ${args} \\
