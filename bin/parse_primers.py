@@ -3,24 +3,22 @@
 """
 Convert primer FASTA files into an OBIPCR-ready TSV samplesheet.
 
-How primers are handled:
+One FASTA file is one primer set:
 - Forward and reverse primers are identified from the FASTA headers.
-- Different primer sets/markers are kept separate based on their header prefix.
-- Primer variants of the same direction and same length are collapsed into one
-  IUPAC-degenerate primer.
-- If primer variants have different lengths, they are split into separate length
-  groups instead of being collapsed together.
-- Every forward-length group is paired with every reverse-length group, producing
-  separate TSV rows for each valid combination.
+- All forward primers in the file are combined into a single IUPAC-degenerate
+  forward primer, and all reverse primers into a single reverse primer.
+- The primer set is named after the file, so a directory holding three FASTA
+  files produces three primer sets - one per file.
+- Every forward primer must have the same length, and so must every reverse
+  primer. Primers of differing lengths cannot be combined and are an error.
 - Existing IUPAC bases such as Y, R, and N are supported.
-- Invalid sequences, missing forward/reverse primers, and unrecognized directions
-  are reported as errors.
+- Invalid sequences, missing forward/reverse primers, and unrecognized
+  directions are reported as errors.
 
 Best practices for primer FASTA files:
-- Keep primer headers simple and consistent.
+- Keep one primer set per file, and name the file after the primer set.
 - Include the primer direction in every header using:
     fwd, forward, rev, or reverse
-- Use clear marker/primer-set prefixes so unrelated primer sets are not merged.
 
   Good examples:
       >ITS2_fwd1
@@ -28,46 +26,34 @@ Best practices for primer FASTA files:
       >ITS2_rev1
       >ITS2_rev2
 
-      >MA_FWD
+- Variants of the same primer are simply extra records with the same direction.
+  Where the variant tag sits does not matter, so all of these are reverse
+  primers of the same set:
+
       >MA_REV
-      >POL_FWD
-      >POL_REV
+      >MA_REV2
+      >MA_ALT_REV
 
-- Variants of the same primer set should use the same prefix.
+- A file holding exactly two records and no direction tokens at all is read as
+  forward first, reverse second:
 
-  Example:
-      >ITS2_fwd1.1
-      >ITS2_fwd2.1
-      >ITS2_fwd3.1
-      >ITS2_rev1.1
-      >ITS2_rev2.1
+      >mlCOIintF
+      >jgHCO2198
 
-- Different markers can be stored in the same FASTA only if their prefixes are
-  clearly different.
-
-  Example:
-      >MA_FWD
-      >MA_REV
-      >POL_FWD
-      >POL_REV
-
-  MA and POL will be treated as separate primer sets.
-
-- Prefer one primer sequence per FASTA record.
-- Primer sequences may span multiple FASTA lines, but one line per primer is
-  easier to read and maintain.
 - Use only valid DNA/IUPAC nucleotide symbols:
     A, C, G, T, R, Y, S, W, K, M, B, D, H, V, N
 - Avoid spaces, gaps, or other non-nucleotide characters inside sequences.
-- Do not use the same header for unrelated primer sets.
-- Primer variants of the same direction should normally have the same length.
-  If lengths differ, they will be processed as separate length groups and will
-  generate separate primer combinations in the TSV.
-- Keep filenames descriptive, for example:
+- Primer sequences may span multiple FASTA lines, but one line per primer is
+  easier to read and maintain.
+- Keep filenames descriptive, because the filename becomes the primer name:
       ITS2.fasta
       rbcL.fasta
-      fungal_ITS2.fasta
-      markers.fasta
+      16S_ASU184.fasta
+
+--input takes any number of primer FASTAs, directories of them, or a mix:
+
+    parse_primers.py --input ITS2.fasta rbcL.fasta --min 100 --max 500 --out primers.tsv
+    parse_primers.py --input primers/ --min 100 --max 500 --out primers.tsv
 
 The output TSV contains:
     primer    fwd    rev    min    max
@@ -152,6 +138,7 @@ TSV_HEADER = [
 #
 # MA_FWD
 # MA_FORWARD
+# MA_ALT_REV
 # ITS2-short_fwd1.1
 # ITS2-short_rev3.2
 #
@@ -214,45 +201,25 @@ def read_fasta(path):
     return records
 
 
-# 4. FIND PREFIX AND DIRECTION
+# 4. FIND THE PRIMER DIRECTION
 
-def split_header(header):
+def find_direction(header):
     """
-    Find the marker prefix and primer direction.
+    Return "fwd", "rev", or None when the header carries no direction.
 
-    Examples:
-
-        MA_FWD
-            -> prefix = MA
-            -> direction = fwd
-
-        ITS2-short_fwd1.1
-            -> prefix = ITS2-short
-            -> direction = fwd
-
-        POL_REV
-            -> prefix = POL
-            -> direction = rev
+    Only the direction matters - everything else in the header is a name for
+    humans, so MA_REV, MA_REV2 and MA_ALT_REV are all reverse primers.
     """
 
     match = DIRECTION_RE.search(header)
 
     if match is None:
-        return header, None
+        return None
 
-    direction_text = match.group(1).lower()
+    if match.group(1).lower() in ("fwd", "forward"):
+        return "fwd"
 
-    if direction_text in ("fwd", "forward"):
-        direction = "fwd"
-    else:
-        direction = "rev"
-
-    # Everything before FWD/REV is the marker name.
-    prefix = header[:match.start()]
-
-    prefix = prefix.strip(" _.-")
-
-    return prefix, direction
+    return "rev"
 
 
 # 5. VALIDATE A PRIMER SEQUENCE
@@ -285,49 +252,42 @@ def validate_sequence(header, sequence):
     return None
 
 
-# 6. GROUP PRIMERS BY MARKER
+# 6. SPLIT ONE FILE INTO FORWARD AND REVERSE PRIMERS
 
-def group_primers(records, filename):
+def split_directions(records, filename):
     """
-    Group primers by marker prefix.
+    Sort every record of one FASTA into forward and reverse primers.
 
     Example:
 
         MA_FWD
         MA_REV
-        POL_FWD
-        POL_REV
+        MA_ALT_REV
 
     becomes:
 
-        MA:
-            fwd = [...]
-            rev = [...]
+        fwd = [MA_FWD]
+        rev = [MA_REV, MA_ALT_REV]
 
-        POL:
-            fwd = [...]
-            rev = [...]
+    Returns (primers, error).
     """
 
-    groups = {}
+    primers = {
+        "fwd": [],
+        "rev": []
+    }
 
-    unlabelled_records = []
+    unlabelled_headers = []
 
     for header, sequence in records:
-        prefix, direction = split_header(header)
+        direction = find_direction(header)
 
         if direction is None:
-            unlabelled_records.append((header, sequence))
+            unlabelled_headers.append(header)
 
             continue
 
-        if prefix not in groups:
-            groups[prefix] = {
-                "fwd": [],
-                "rev": []
-            }
-
-        groups[prefix][direction].append(sequence.upper())
+        primers[direction].append(sequence.upper())
 
     # --------------------------------------------------------
     # Special case:
@@ -339,91 +299,42 @@ def group_primers(records, filename):
     # second = REV
     # --------------------------------------------------------
 
-    if len(unlabelled_records) == 2 and len(records) == 2:
-        first_sequence = unlabelled_records[0][1]
-        second_sequence = unlabelled_records[1][1]
-
-        groups = {
-            "": {
-                "fwd": [first_sequence.upper()],
-                "rev": [second_sequence.upper()]
-            }
-        }
-
-        return groups, None
+    if len(unlabelled_headers) == 2 and len(records) == 2:
+        return {
+            "fwd": [records[0][1].upper()],
+            "rev": [records[1][1].upper()]
+        }, None
 
     # --------------------------------------------------------
     # If some primer directions cannot be identified, fail.
     # --------------------------------------------------------
 
-    if unlabelled_records:
-        headers = []
-
-        for header, sequence in unlabelled_records:
-            headers.append(header)
-
+    if unlabelled_headers:
         return None, (
             f"{filename}: could not determine FWD/REV "
-            f"for these primer(s): {headers}"
+            f"for these primer(s): {unlabelled_headers}"
         )
 
     # --------------------------------------------------------
-    # Every marker needs FWD and REV
+    # A primer set needs both directions.
     # --------------------------------------------------------
 
-    for prefix in groups:
-        forward_primers = groups[prefix]["fwd"]
-        reverse_primers = groups[prefix]["rev"]
+    if not primers["fwd"] or not primers["rev"]:
+        return None, (
+            f"{filename}: found "
+            f"{len(primers['fwd'])} fwd and "
+            f"{len(primers['rev'])} rev - "
+            f"a primer set needs both."
+        )
 
-        if len(forward_primers) == 0 or len(reverse_primers) == 0:
-            return None, (
-                f"{filename}: marker '{prefix}' has "
-                f"{len(forward_primers)} fwd and "
-                f"{len(reverse_primers)} rev - "
-                f"a primer set needs both."
-            )
-
-    return groups, None
+    return primers, None
 
 
-# 7. GROUP SEQUENCES BY LENGTH
-
-def group_by_length(sequences):
-    """
-    Example:
-
-        21 bp primer
-        21 bp primer
-        23 bp primer
-
-    becomes:
-
-        21:
-            primer
-            primer
-
-        23:
-            primer
-    """
-
-    groups = {}
-
-    for sequence in sequences:
-        length = len(sequence)
-
-        if length not in groups:
-            groups[length] = []
-
-        groups[length].append(sequence)
-
-    return groups
-
-
-# 8. COLLAPSE SAME-LENGTH PRIMERS
+# 7. COMBINE THE PRIMERS OF ONE DIRECTION
 
 def collapse_iupac(sequences):
     """
-    Collapse same-length primer variants into one IUPAC primer.
+    Collapse primer variants into one IUPAC primer.
 
     Example:
 
@@ -471,11 +382,36 @@ def collapse_iupac(sequences):
     return collapsed_sequence
 
 
-# 9. CONVERT ONE FASTA INTO TSV ROWS
+def collapse_direction(sequences, direction, filename):
+    """
+    Combine every primer of one direction into a single sequence.
+
+    Primers can only be combined position by position, so they all have to be
+    the same length. Differing lengths mean the file holds more than one primer
+    set, which this script does not support.
+
+    Returns (sequence, error).
+    """
+
+    lengths = sorted({len(sequence) for sequence in sequences})
+
+    if len(lengths) > 1:
+        length_text = ", ".join(str(length) for length in lengths)
+
+        return None, (
+            f"{filename}: {direction} primers have different lengths "
+            f"({length_text}) - a primer FASTA must contain one primer set; "
+            f"split them into separate files."
+        )
+
+    return collapse_iupac(sequences), None
+
+
+# 8. CONVERT ONE FASTA INTO A TSV ROW
 
 def process_fasta(path, min_length, max_length):
     """
-    Process one primer FASTA.
+    Process one primer FASTA into the single primer set it describes.
 
     Returns:
 
@@ -514,10 +450,10 @@ def process_fasta(path, min_length, max_length):
         return rows, warnings, errors
 
     # --------------------------------------------------------
-    # Separate markers and FWD/REV primers
+    # Separate FWD and REV primers
     # --------------------------------------------------------
 
-    groups, error = group_primers(records, path.name)
+    primers, error = split_directions(records, path.name)
 
     if error is not None:
         errors.append(error)
@@ -525,114 +461,45 @@ def process_fasta(path, min_length, max_length):
         return rows, warnings, errors
 
     # --------------------------------------------------------
-    # Process each marker separately
+    # Combine each direction into one primer
     # --------------------------------------------------------
 
-    for prefix in groups:
-        forward_primers = groups[prefix]["fwd"]
-        reverse_primers = groups[prefix]["rev"]
+    forward, forward_error = collapse_direction(primers["fwd"], "fwd", path.name)
 
-        # Group variants by length.
-        forward_length_groups = group_by_length(forward_primers)
+    reverse, reverse_error = collapse_direction(primers["rev"], "rev", path.name)
 
-        reverse_length_groups = group_by_length(reverse_primers)
+    for error in (forward_error, reverse_error):
+        if error is not None:
+            errors.append(error)
 
-        # --------------------------------------------
-        # Warn if multiple lengths exist.
-        # --------------------------------------------
+    if errors:
+        return rows, warnings, errors
 
-        if (
-            len(forward_length_groups) > 1
-            or
-            len(reverse_length_groups) > 1
-        ):
-            warnings.append(
-                f"{path.name}: marker '{prefix}' contains "
-                f"different primer lengths. "
-                f"FWD lengths: {sorted(forward_length_groups.keys())}; "
-                f"REV lengths: {sorted(reverse_length_groups.keys())}. "
-                f"Each length combination will be benchmarked separately."
-            )
+    # --------------------------------------------------------
+    # Combining variants puts a sequence in the samplesheet that appears in no
+    # input file, so record that it happened.
+    # --------------------------------------------------------
 
-        # --------------------------------------------
-        # Collapse every FWD length group.
-        # --------------------------------------------
+    if len(primers["fwd"]) > 1 or len(primers["rev"]) > 1:
+        warnings.append(
+            f"{path.name}: combined "
+            f"{len(primers['fwd'])} fwd and "
+            f"{len(primers['rev'])} rev primer(s) "
+            f"into one degenerate primer pair."
+        )
 
-        collapsed_forwards = []
-
-        for length in forward_length_groups:
-            sequences = forward_length_groups[length]
-
-            collapsed = collapse_iupac(sequences)
-
-            collapsed_forwards.append(collapsed)
-
-        # --------------------------------------------
-        # Collapse every REV length group.
-        # --------------------------------------------
-
-        collapsed_reverses = []
-
-        for length in reverse_length_groups:
-            sequences = reverse_length_groups[length]
-
-            collapsed = collapse_iupac(sequences)
-
-            collapsed_reverses.append(collapsed)
-
-        # --------------------------------------------
-        # Build the primer-set name.
-        # --------------------------------------------
-
-        file_name = make_name_safe(path.stem)
-
-        if len(groups) == 1:
-            primer_name = file_name
-
-        else:
-            safe_prefix = make_name_safe(prefix)
-
-            primer_name = (f"{file_name}_{safe_prefix}")
-
-        # --------------------------------------------
-        # Make every FWD × REV length combination.
-        # --------------------------------------------
-
-        combinations = []
-
-        for forward in collapsed_forwards:
-            for reverse in collapsed_reverses:
-                combinations.append((forward, reverse))
-
-        # --------------------------------------------
-        # Add rows to output samplesheet.
-        # --------------------------------------------
-
-        combination_number = 1
-
-        for forward, reverse in combinations:
-            if len(combinations) == 1:
-                row_name = primer_name
-
-            else:
-                row_name = (f"{primer_name}_{combination_number}")
-
-            row = {
-                "primer": row_name,
-                "fwd": forward,
-                "rev": reverse,
-                "min": min_length,
-                "max": max_length,
-            }
-
-            rows.append(row)
-
-            combination_number += 1
+    rows.append({
+        "primer": make_name_safe(path.stem),
+        "fwd": forward,
+        "rev": reverse,
+        "min": min_length,
+        "max": max_length,
+    })
 
     return rows, warnings, errors
 
 
-# 10. FIND INPUT FASTA FILES
+# 9. FIND INPUT FASTA FILES
 
 # Characters that are unsafe in a file or directory name. Primer names
 # become output paths later, so they are replaced with "_".
@@ -660,46 +527,59 @@ def is_fasta(path):
     return False
 
 
-def find_input_files(input_path):
+def find_input_files(inputs):
     """
-    --input may be:
+    --input may be any number of:
 
-        one FASTA
+        primer FASTA files
 
-    or:
+    and:
 
-        a directory containing FASTA files
+        directories containing primer FASTA files
     """
 
-    input_path = Path(input_path)
+    # A single path is also accepted, so callers do not have to wrap it.
+    if isinstance(inputs, (str, Path)):
+        inputs = [inputs]
 
-    # Single file
-    if input_path.is_file():
-        return [input_path]
+    fasta_files = []
 
-    # Directory
-    if input_path.is_dir():
-        fasta_files = []
+    for raw_input in inputs:
+        input_path = Path(raw_input)
 
-        for path in sorted(input_path.iterdir()):
-            if path.suffix.lower() in FASTA_SUFFIXES:
-                fasta_files.append(path)
+        # Single file
+        if input_path.is_file():
+            fasta_files.append(input_path)
 
-        if len(fasta_files) == 0:
-            sys.exit(
-                f"ERROR: No FASTA files found in "
-                f"{input_path}"
-            )
+            continue
 
-        return fasta_files
+        # Directory
+        if input_path.is_dir():
+            found_files = []
 
-    sys.exit(
-        f"ERROR: Input does not exist: "
-        f"{input_path}"
-    )
+            for path in sorted(input_path.iterdir()):
+                if path.suffix.lower() in FASTA_SUFFIXES:
+                    found_files.append(path)
+
+            if len(found_files) == 0:
+                sys.exit(
+                    f"ERROR: No FASTA files found in "
+                    f"{input_path}"
+                )
+
+            fasta_files.extend(found_files)
+
+            continue
+
+        sys.exit(
+            f"ERROR: Input does not exist: "
+            f"{input_path}"
+        )
+
+    return fasta_files
 
 
-# 11. PROCESS EVERY FASTA
+# 10. PROCESS EVERY FASTA
 
 def collect_rows(paths, min_length, max_length):
     """
@@ -714,12 +594,29 @@ def collect_rows(paths, min_length, max_length):
     all_warnings = []
     all_errors = []
 
+    # Primer names become output paths, so two files cannot share one name.
+    files_by_name = {}
+
     for path in paths:
+        path = Path(path)
+
         rows, warnings, errors = process_fasta(
-            Path(path),
+            path,
             min_length,
             max_length
         )
+
+        for row in rows:
+            previous_file = files_by_name.get(row["primer"])
+
+            if previous_file is None:
+                files_by_name[row["primer"]] = path
+
+            else:
+                all_errors.append(
+                    f"{path}: primer name '{row['primer']}' is already used "
+                    f"by {previous_file} - every primer FASTA needs its own name."
+                )
 
         all_rows.extend(rows)
         all_warnings.extend(warnings)
@@ -731,7 +628,7 @@ def collect_rows(paths, min_length, max_length):
     return all_rows, all_warnings, all_errors
 
 
-# 12. WRITE TSV
+# 11. WRITE TSV
 
 def write_tsv(rows, output_file):
     with open(output_file, "w") as file:
@@ -746,7 +643,7 @@ def write_tsv(rows, output_file):
             file.write("\t".join(values) + "\n")
 
 
-# 13. MAIN
+# 12. MAIN
 
 def main():
     parser = argparse.ArgumentParser(
@@ -757,7 +654,8 @@ def main():
     parser.add_argument(
         "--input",
         required=True,
-        help="Primer FASTA or directory of primer FASTAs"
+        nargs="+",
+        help="Primer FASTA files and/or directories of primer FASTAs"
     )
 
     parser.add_argument(
@@ -823,7 +721,7 @@ def main():
         sys.exit(1)
 
     # --------------------------------------------------------
-    # Everything passed → write output
+    # Everything passed -> write output
     # --------------------------------------------------------
 
     write_tsv(all_rows, args.out)
