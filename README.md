@@ -21,23 +21,31 @@ BarBeQuE has two entry points:
 
 ## Quick Start
 
+This branch is not yet merged into bio-raum/BarBeQuE, so clone it from the fork:
+
 ```bash
-nextflow run bio-raum/BarBeQuE \
-  -profile singularity \
-  --input primers.tsv \
-  --dbs refseq_mito,midori_co1 \
-  --reference_base /path/to/references \
-  --run_name primer_benchmark \
-  --outdir results
+git clone -b feature/multiqc-taxon-cluster-search https://github.com/jissksaji/BarBeQuE.git
+cd BarBeQuE
 ```
 
-Install references first when running on a fresh system:
+Install the references once on a fresh system:
 
 ```bash
-nextflow run bio-raum/BarBeQuE \
-  -profile singularity \
+nextflow run main.nf \
+  -profile conda \
   --build_references \
   --reference_base /path/to/references
+```
+
+Then benchmark your primers against your own database:
+
+```bash
+nextflow run main.nf \
+  -profile conda \
+  --input primers.tsv \
+  --custom_db /path/to/database.fasta \
+  --reference_base /path/to/references \
+  --outdir results
 ```
 
 ## Documentation
