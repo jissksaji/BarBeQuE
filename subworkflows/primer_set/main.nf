@@ -10,7 +10,7 @@ workflow PRIMER_SET {
 
     // Resolve each requested --primer_set name against the live FooDMe2 catalog (PrimerCatalog,
     // lib/PrimerCatalog.groovy) - same catalog --list_primers prints, always current, nothing
-    // hand-maintained here that could drift out of sync with upstream.
+    //update the commits as Foodme2 changes or can be out of sync
     def catalog = PrimerCatalog.fetchCatalog()
     def valid_names = catalog.keySet()
 

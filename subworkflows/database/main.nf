@@ -71,7 +71,7 @@ workflow DATABASE {
     }
 
     // Apply the configured sequence filters to the selected database.
-    if (params.db_filter) {
+    if (WorkflowPipeline.enabled(params.db_filter)) {
         DB_FILTER(ch_dbs)
         ch_versions = ch_versions.mix(DB_FILTER.out.versions)
         ch_dbs = DB_FILTER.out.fasta
