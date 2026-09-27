@@ -19,12 +19,12 @@ class WorkflowPipeline {
     //
     // Check and validate parameters
     //
-    public static void initialise( params, log) {
+    public static void initialise(params, log) {
         if (enabled(params.build_references) && !params.reference_base) {
             log.error '--build_references requires --reference_base'
             System.exit(1)
         }
-         if (enabled(params.list_dbs)) {
+        if (enabled(params.list_dbs)) {
             println('Available databases:')
             println('===========================')
             params.references.databases.keySet().each { db ->
@@ -60,14 +60,13 @@ class WorkflowPipeline {
             System.exit(1)
         }
         if (!params.input && !params.primer_set && !enabled(params.build_references)) {
-            log.info "Pipeline requires a sample sheet / primer FASTA directory (--input) or a named primer set (--primer_set) as input"
+            log.info 'Pipeline requires a sample sheet / primer FASTA directory (--input) or a named primer set (--primer_set) as input'
             System.exit(1)
         }
         if (params.input && isFastaInput(params.input) && (!params.primer_min || !params.primer_max)) {
-            log.info "When --input is a primer FASTA, or a directory of them, provide global amplicon bounds with --primer_min and --primer_max"
+            log.info 'When --input is a primer FASTA, or a directory of them, provide global amplicon bounds with --primer_min and --primer_max'
             System.exit(1)
         }
-
     }
 
     //

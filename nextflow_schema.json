@@ -50,7 +50,8 @@
         },
         "install_taxdump": {
           "type": "boolean",
-          "description": "Install both the NCBI taxonomy dump and nucl_gb.accession2taxid during --build_references"
+          "description": "Install both the NCBI taxonomy dump and nucl_gb.accession2taxid during --build_references",
+          "default": true
         },
 
         "primer_min": {
@@ -61,10 +62,6 @@
           "type": "integer",
           "description": "Global maximum amplicon length for --input primer FASTA input"
         },
-        "genbank_taxid": {
-          "type": "integer",
-          "description": "Restrict the BLASTN-vs-core_nt search to this taxid; unrestricted (searches all of core_nt) if not set"
-        },
         "dbs": {
           "type": "string",
           "description": "A comma-separated list of pre-installed databases to benchmark against"
@@ -72,12 +69,6 @@
         "taxid": {
           "type": "integer",
           "description": "Restrict --dbs/--custom_db to this taxid (and its descendants) before analysis, so only that taxon is analysed/checked"
-        },
-        "accession_blocklist": {
-          "type": "string",
-          "format": "file-path",
-          "exists": true,
-          "description": "Path to accessions that should be removed after OBI-PCR parsing and excluded from every downstream analysis. Use one accession per line; blank lines and # comments are ignored, and matching is version-insensitive."
         },
         "list_dbs": {
           "type": "boolean",
@@ -131,7 +122,7 @@
       "properties": {
         "mask": {
           "type": "boolean",
-          "description": "Mask primer-binding regions in each amplicon",
+          "description": "Mask amplicons to simulate sequencing reads of --read_length (paired-end keeps both ends, --single_end truncates)",
           "default": false
         },
         "single_end": {
@@ -149,7 +140,7 @@
         },
         "cluster_id": {
           "type": "number",
-          "default": 0.97,
+          "default": 0.98,
           "minimum": 0.0,
           "maximum": 1.0,
           "description": "VSEARCH --cluster_fast identity threshold used to group barcode sequences (set with --cluster_id)"
@@ -168,19 +159,21 @@
         },
         "db_filter_pattern": {
           "type": "string",
-          "description": "Regex pattern for removing unwanted headers from selected databases"
+          "description": "Regex pattern for removing unwanted headers from selected databases",
+          "default": "synthetic|artificial|construct|recombinant|transgenic|unverified|low[ ._-]?quality|contaminant|chimeric|misidentified|environmental"
         },
         "db_filter_min_length": {
           "type": "integer",
-          "description": "Minimum sequence length for database filtering. Must be used together with db_filter_max_length"
+          "description": "Minimum sequence length for database filtering",
+          "default": 50
         },
         "db_filter_max_length": {
           "type": "integer",
-          "description": "Maximum sequence length for database filtering. Must be used together with db_filter_min_length"
+          "description": "Maximum sequence length for database filtering; no upper limit if not set"
         },
         "db_filter_max_n": {
           "type": "integer",
-          "description": "Maximum number of ambiguous bases allowed per sequence. Only applied when length filter is active"
+          "description": "Maximum number of IUPAC ambiguity bases allowed per sequence; not applied if not set"
         },
         "obipcr_mismatches": {
           "type": "integer",
@@ -192,6 +185,12 @@
           "description": "Number of 3'-terminal bases of each primer that must match without mismatch, as in a real PCR. Applied by appending '#' to those bases in the obipcr primer. 0 disables the clamp",
           "default": 3,
           "minimum": 0
+        },
+        "filter_collapsed_primers": {
+          "type": "boolean",
+          "description": "Re-check obipcr amplicons against the original, uncollapsed primers and discard those only the combined degenerate primer could explain",
+          "help_text": "Primer FASTA input combines all forward primer variants into one IUPAC-degenerate forward primer and all reverse variants into one reverse primer. The combined primer also matches base combinations that no real primer has, so those amplicons are false positives. This filter keeps an amplicon only when both binding sites can be explained by at least one original primer, using the same mismatch budget as obipcr. Applies only when --input is a primer FASTA or a directory of them; it has no effect for a samplesheet or for --primer_set",
+          "default": true
         },
         "db_filter": {
           "type": "boolean",
@@ -219,9 +218,6 @@
     "reference_version": {
       "type": "string",
       "default": "1.1"
-    },
-    "plaintext_email": {
-      "type": "boolean"
     },
     "midori_version": {
       "type": "string",
