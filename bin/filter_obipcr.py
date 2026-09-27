@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mask import read_fasta
-from parse_obipcr import IUPAC, parse_header
+from parse_obipcr import IUPAC
 from parse_primers import find_input_files, make_name_safe
 from parse_primers import read_fasta as read_primer_fasta, split_directions
+
+
+# Read the obipcr JSON annotations after the first space of a header
+def read_annotations(header):
+    return json.loads(header.split(" ", 1)[1])
 
 
 # Load real primer variants
@@ -52,57 +58,60 @@ def passes(site, primers, max_mm, fixed):
     return False
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--amplicons", required=True)
-parser.add_argument("--primer-input", required=True)
-parser.add_argument("--primer", required=True)
-parser.add_argument("--db", default="")
-parser.add_argument("--mismatches", required=True, type=int)
-parser.add_argument("--out", required=True)
-parser.add_argument("--stats", required=True)
-args = parser.parse_args()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--amplicons", required=True)
+    parser.add_argument("--primer-input", required=True)
+    parser.add_argument("--primer", required=True)
+    parser.add_argument("--db", default="")
+    parser.add_argument("--mismatches", required=True, type=int)
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--stats", required=True)
+    args = parser.parse_args()
 
-primers = load_primers(args.primer_input, args.primer)
-total = kept = f_fail = r_fail = 0
+    primers = load_primers(args.primer_input, args.primer)
+    total = kept = f_fail = r_fail = 0
 
+    # Filter OBIPCR amplicons
+    with open(args.out, "w") as out:
+        for header, seq in read_fasta(args.amplicons):
+            total += 1
+            a = read_annotations(header)
 
-# Filter OBIPCR amplicons
-with open(args.out, "w") as out:
-    for header, seq in read_fasta(args.amplicons):
-        total += 1
-        _, _, _, a = parse_header(">" + header)
+            f_ok = passes(
+                a["forward_match"].upper(),
+                primers,
+                args.mismatches,
+                clamps(a["forward_primer"]),
+            )
 
-        f_ok = passes(
-            a["forward_match"].upper(),
-            primers,
-            args.mismatches,
-            clamps(a["forward_primer"]),
+            r_ok = passes(
+                a["reverse_match"].upper(),
+                primers,
+                args.mismatches,
+                clamps(a["reverse_primer"]),
+            )
+
+            f_fail += not f_ok
+            r_fail += not r_ok
+
+            if f_ok and r_ok:
+                out.write(f">{header}\n{seq}\n")
+                kept += 1
+
+    # Save summary
+    discarded = total - kept
+
+    with open(args.stats, "w") as out:
+        out.write(
+            "primer\tdb\ttotal\tkept\tdiscarded\t"
+            "forward_unexplained\treverse_unexplained\n"
+        )
+        out.write(
+            f"{args.primer}\t{args.db}\t{total}\t{kept}\t{discarded}\t"
+            f"{f_fail}\t{r_fail}\n"
         )
 
-        r_ok = passes(
-            a["reverse_match"].upper(),
-            primers,
-            args.mismatches,
-            clamps(a["reverse_primer"]),
-        )
 
-        f_fail += not f_ok
-        r_fail += not r_ok
-
-        if f_ok and r_ok:
-            out.write(f">{header}\n{seq}\n")
-            kept += 1
-
-
-# Save summary
-discarded = total - kept
-
-with open(args.stats, "w") as out:
-    out.write(
-        "primer\tdb\ttotal\tkept\tdiscarded\t"
-        "forward_unexplained\treverse_unexplained\n"
-    )
-    out.write(
-        f"{args.primer}\t{args.db}\t{total}\t{kept}\t{discarded}\t"
-        f"{f_fail}\t{r_fail}\n"
-    )
+if __name__ == "__main__":
+    main()
