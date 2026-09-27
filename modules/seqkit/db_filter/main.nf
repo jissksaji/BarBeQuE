@@ -17,17 +17,23 @@ process DB_FILTER {
     def prefix = task.ext.prefix ?: "${meta.id}"
     def pattern = params.db_filter_pattern
 
-    // Length and ambiguity filtering is enabled when both length bounds are set.
-    def do_length_filter = params.db_filter_min_length != null && params.db_filter_max_length != null
-    def length_filter = do_length_filter
-        ? "| seqkit seq" +
-          " --min-len ${params.db_filter_min_length}" +
-          " --max-len ${params.db_filter_max_length}" +
-          " --threads ${task.cpus}"
+    // The two length bounds are independent - seqkit takes --min-len and --max-len
+    // separately, so leaving db_filter_max_length unset means "no upper limit"
+    // rather than disabling length filtering altogether.
+    def length_bounds = []
+    if (params.db_filter_min_length != null) {
+        length_bounds << "--min-len ${params.db_filter_min_length}"
+    }
+    if (params.db_filter_max_length != null) {
+        length_bounds << "--max-len ${params.db_filter_max_length}"
+    }
+    def length_filter = length_bounds
+        ? "| seqkit seq ${length_bounds.join(' ')} --threads ${task.cpus}"
         : ""
     // SeqKit has no --max-ambig option. Reject records containing more than
     // the allowed number of IUPAC ambiguity symbols with a sequence regex.
-    def ambiguity_filter = do_length_filter && params.db_filter_max_n != null
+    // Independent of the length bounds above.
+    def ambiguity_filter = params.db_filter_max_n != null
         ? "| seqkit grep --by-seq --use-regexp --ignore-case --only-positive-strand --invert-match" +
           " --pattern \"[RYKMSWBDHVN]([^RYKMSWBDHVN]*[RYKMSWBDHVN]){${params.db_filter_max_n}}\"" +
           " --threads ${task.cpus}"
