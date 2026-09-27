@@ -31,11 +31,11 @@ workflow {
     log.info("\033[1;31mRunning with Conda is not recommended in production!\033[0m\n\033[0;31mConda environments are not guaranteed to be reproducible - for a discussion, see https://pubmed.ncbi.nlm.nih.gov/29953862/.\033[0m")
   }
 
-  if (params.help) {
+  if (WorkflowPipeline.enabled(params.help)) {
       log.info paramsHelp(command: "nextflow run main.nf")
       System.exit(0)
   }
-  if (params.helpFull) {
+  if (WorkflowPipeline.enabled(params.helpFull)) {
       System.exit(0)
   }
 
@@ -46,7 +46,7 @@ workflow {
   // Print summary of supplied parameters
   log.info(paramsSummaryLog(workflow))
 
-  if (params.build_references) {
+  if (WorkflowPipeline.enabled(params.build_references)) {
       BUILD_REFERENCES()
   } else {
       DATABASE()
@@ -56,7 +56,7 @@ workflow {
           DATABASE.out.taxdump,
           DATABASE.out.accession_taxonomy,
       )
-      if (params.interactive) {
+      if (WorkflowPipeline.enabled(params.interactive)) {
           BARBEQUE.out.consensus.collect() | map { "${params.outdir}" } | INTERACTIVE_RESULTS
       }
   }
