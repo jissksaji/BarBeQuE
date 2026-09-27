@@ -8,10 +8,11 @@ BarBeQuE reproducibility depends on three things:
 
 ## Pipeline Version
 
-Pin production runs with Nextflow's `-r` option:
+Pin production runs by checking out a release tag in your clone:
 
 ```bash
-nextflow run bio-raum/BarBeQuE -r <tag> ...
+git checkout <tag>
+nextflow run main.nf ...
 ```
 
 Use release tags for published analyses. Use branches such as `main` only for development.

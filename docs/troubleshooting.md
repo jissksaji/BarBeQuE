@@ -49,7 +49,7 @@ or:
 Run:
 
 ```bash
-nextflow run bio-raum/BarBeQuE --list_dbs --reference_base /path/to/references
+nextflow run main.nf -profile conda --list_dbs --reference_base /path/to/references
 ```
 
 Use ids exactly as shown. Prebuilt BLAST databases such as `core_nt` are not valid `--dbs` inputs for in-silico PCR.

@@ -3,8 +3,8 @@
 `--build_references` installs the reference data and exits. It doesn't run an analysis.
 
 ```bash
-nextflow run bio-raum/BarBeQuE \
-  -profile singularity \
+nextflow run main.nf \
+  -profile conda \
   --build_references \
   --reference_base /path/to/references
 ```

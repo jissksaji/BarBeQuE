@@ -3,8 +3,8 @@
 ## Quick start
 
 ```bash
-nextflow run bio-raum/BarBeQuE \
-  -profile singularity \
+nextflow run main.nf \
+  -profile conda \
   --input primers.tsv \
   --dbs refseq_mito \
   --reference_base /path/to/references \
@@ -23,7 +23,7 @@ A run needs:
 Install the databases and taxonomy once:
 
 ```bash
-nextflow run bio-raum/BarBeQuE -profile singularity \
+nextflow run main.nf -profile conda \
   --build_references --reference_base /path/to/references
 ```
 

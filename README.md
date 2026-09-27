@@ -21,10 +21,10 @@ BarBeQuE has two entry points:
 
 ## Quick Start
 
-This branch is not yet merged into bio-raum/BarBeQuE, so clone it from the fork:
+BarBeQuE is not yet merged into bio-raum/BarBeQuE, so clone it from the fork:
 
 ```bash
-git clone -b feature/multiqc-taxon-cluster-search https://github.com/jissksaji/BarBeQuE.git
+git clone https://github.com/jissksaji/BarBeQuE.git
 cd BarBeQuE
 ```
 
