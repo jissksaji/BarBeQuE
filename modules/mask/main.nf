@@ -20,7 +20,7 @@ mask.py \
     --input ${fasta} \
     --output "${prefix}_masked.fasta" \
     --read-length ${params.read_length} \
-    ${params.single_end ? '--single-end' : ''}
+    ${WorkflowPipeline.enabled(params.single_end) ? '--single-end' : ''}
 
     cat <<-END_VERSIONS > versions.yml
 "${task.process}":

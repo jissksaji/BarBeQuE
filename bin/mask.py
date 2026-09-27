@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""Mask the center of each amplicon to simulate the unsequenced gap
-between non-overlapping paired-end reads.
-single ends can also be set. For single ends , there are no 'N' replacements at the end.
-
-Keeps read_length bases at each end and replaces the middle with Ns.
-Amplicons short enough for the two reads to overlap (length <= 2 * read_length)
-are left unchanged, so short markers drop out of the experiment on their own.
-"""
-
 import argparse
 
 
@@ -28,20 +19,15 @@ def read_fasta(path):
         if header is not None:
             yield header, "".join(seq_parts)
 
-
+#Replace the middle of one sequence with 20 Ns if it exceeds 2*read_length, keeping both ends.
 def mask_paired_end(sequence, read_length):
-    """Replace the middle of one sequence with 20 Ns if it exceeds 2*read_length, keeping both ends.
-    """
     length = len(sequence)
     if length <= 2 * read_length:
         return sequence
     return sequence[:read_length] + "N" * 20 + sequence[-read_length:]
 
-
+#No N's added for single end
 def mask_single_end(sequence, read_length):
-    """Truncate the sequence at read_length if it exceeds it.
-    No Ns are added.
-    """
     length = len(sequence)
     if length <= read_length:
         return sequence
