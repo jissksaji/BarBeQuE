@@ -35,8 +35,8 @@ Taxonomy input is resolved from:
 1. Resolve primers into a common structure: primer id, forward primer, reverse primer, minimum amplicon length, maximum amplicon length.
 2. Combine every primer with every selected database.
 3. Run in-silico PCR with OBI-PCR.
-4. Parse the raw OBI-PCR output.
-5. Optionally remove accessions listed by `--accession_blocklist` from both parsed results and amplicon FASTA.
+4. For primer FASTA input, re-check every amplicon against the original, uncollapsed primers and discard those only the combined degenerate primer could explain (`--filter_collapsed_primers`).
+5. Parse the raw OBI-PCR output.
 6. Drop primer/database pairs with no retained amplicons from downstream analysis.
 7. Optionally apply `--mask` to mimic single-end or paired-end read coverage.
 8. Write amplicon length summaries.
@@ -48,13 +48,6 @@ Taxonomy input is resolved from:
 14. Summarize database taxonomic distribution.
 15. Optionally run target-taxon coverage with `--taxon`.
 16. Build one MultiQC report per primer/database combination.
-
-## Excluding Unwanted Accessions
-
-`--accession_blocklist` is applied immediately after OBI-PCR parsing. Matching
-accessions are removed from the parsed TSV and amplicon FASTA before any masking,
-length profiling, clustering, taxonomy assignment, or reporting. See
-[usage.md](usage.md).
 
 ## Interactive Results
 

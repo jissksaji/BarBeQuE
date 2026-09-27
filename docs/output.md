@@ -1,69 +1,47 @@
 # Outputs
 
-Outputs are written under `--outdir`, default `results`.
+Outputs are written to `--outdir` (default `results`).
 
-## Core Directories
+## Directories
 
 | Directory | Contents |
 | --- | --- |
-| `pipeline_info/` | Staged samplesheet and software version metadata. |
-| `reports/` | MultiQC reports, one per primer/database group. |
-| `raw/obipcr/` | Raw OBI in-silico PCR output. |
-| `parsed_obipcr/` | Parsed OBI results with primer mismatch and amplicon metrics. |
-| `primers/` | The samplesheet generated from primer FASTA input, plus any parser warnings. |
-| `amplicon_lengths/` | Amplicon length summaries. |
-| `build_db_taxids/` | Accession-to-taxid and taxid-count tables built from each database. |
-| `db_distribution/` | Taxonomic composition summaries for each database. |
-| `cluster_fast/` | VSEARCH clustered FASTA and `.uc` files. |
-| `join_accession_taxonomy/` | Cluster accession assignments joined to taxids. |
-| `consensus/` | Consensus taxonomy per cluster. |
+| `reports/individual/` | One MultiQC report per primer/database pair. |
+| `reports/combined/` | One MultiQC report covering all primers and databases (`all_primers`). |
+| `pipeline_info/` | Staged samplesheet and software versions. |
+| `primers/` | Samplesheet generated from primer FASTA or `--primer_set` input, plus parser warnings. |
+| `raw/obipcr/` | Raw obipcr amplicons. |
+| `filtered_obipcr/` | Amplicons that match the original (unmerged) primers, plus `*_filter_stats.tsv`. Primer FASTA input only. |
+| `parsed_obipcr/` | One amplicon table per primer/database pair (see below). |
+| `build_db_taxids/` | Accession-to-taxid and taxid-count tables per database. |
+| `db_distribution/` | Taxonomic composition of each database. |
+| `cluster_fast/` | VSEARCH cluster files (`.uc`). |
+| `join_accession_taxonomy/` | Cluster members joined to their taxonomy. |
+| `consensus/` | Consensus taxonomy per cluster. This is the main result. |
+| `taxid_filtered/` | Databases restricted to `--taxid`. Only with `--taxid`. |
+| `tax_coverage/` | Coverage tables and Newick trees for the target taxon. Only with `--taxon`. |
 
-## Optional Directories
+## Consensus table
 
-| Directory | Created When | Contents |
-| --- | --- | --- |
-| `taxid_filtered/` | `--taxid` | Database FASTAs restricted to the requested taxon. |
-| `accession_blocklist/` | `--accession_blocklist` | Per-primer/database summaries of listed, matched, and removed accessions. |
-| `tax_coverage/` | `--taxon` | Taxon-focused coverage and species representation tables. |
+`consensus/` has one TSV per primer/database pair, with no header row. Each row is one accession:
 
-## Consensus Table
+1. cluster id
+2. accession
+3. accession taxid
+4. accession taxon name
+5. assigned name
+6. assigned taxid
+7. assigned rank
+8. disambiguation (`;`-separated taxa found in the cluster)
 
-Files in `consensus/` are the main result tables. They report cluster-level consensus taxonomy and the accessions supporting each call.
+A cluster whose accessions span several taxa can't tell those taxa apart at the chosen
+`--cluster_id`. The assigned taxon must be supported by at least `--consensus_fraction` (default
+`1.0`) of the accessions that have a valid taxid. Clusters without a consensus are `Unclassified`.
 
-Important columns:
+## Parsed obipcr table
 
-- `cluster_id`: VSEARCH cluster id.
-- `accession`: sequence accession in the cluster.
-- `accession_taxid`: taxid resolved from the accession mapping.
-- `assigned_name`: consensus taxon name.
-- `assigned_taxid`: consensus taxid.
-- `assigned_rank`: rank of the consensus call.
-- `disambiguation`: taxa represented inside the cluster.
+`parsed_obipcr/` has one TSV per primer/database pair, with these columns:
 
-If a cluster contains accessions from multiple taxa, the barcode sequence is not unique for those taxa at the selected clustering threshold.
-Consensus assignments use `--consensus_fraction` (default `1.0`). The fraction is
-calculated over accessions with valid taxonomy; accessions without a usable taxid
-do not vote and are not included in the denominator.
-
-## Parsed OBI Table
-
-`parsed_obipcr/` contains one TSV per primer/database pair when OBI is used. When
-`--accession_blocklist` is supplied, these are the filtered tables. They include:
-
-- binding coordinates
-- amplicon length
-- primer and match sequences
-- mismatch positions from the primer and genome perspective
-- mismatch severity
-- GC and Tm metrics
-- dimer/hairpin indicators
-- hit counts and length spread per source sequence
-
-## Accession Blocklist Summary
-
-`accession_blocklist/` contains one `*.accession_blocklist_summary.tsv` per
-primer/database pair:
-
-- `listed_accessions`, `matched_accessions`, and `unmatched_accessions`
-- input, kept, and removed FASTA record counts
-- input, kept, and removed parsed TSV row counts
+- `Sequence_ID`, `Amplicon_Length`, `Amplicon_GC`, `Amplicon_Sequence`
+- for each of `Forward_` and `Reverse_`: `Primer`, `Match`, `Errors`,
+  `Mismatch_Positions_Primer`, `Mismatch_From_3Prime`, `Primer_GC`, `Match_GC`

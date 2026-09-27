@@ -1,52 +1,54 @@
 # Pipeline Workflow
 
-`main.nf` is the routing layer for BarBeQuE. It enables DSL2, prints parameter help through `nf-schema`, validates parameters through `WorkflowMain` and `WorkflowPipeline`, and then chooses one of two workflows.
-
-## Entry Points
+`main.nf` validates the parameters and then runs one of two modes.
 
 ```groovy
-if (params.build_references) {
+if (build_references) {
     BUILD_REFERENCES()
 } else {
     DATABASE()
-    BARBEQUE(DATABASE.out.db, DATABASE.out.versions)
-    if (params.interactive) {
-        BARBEQUE.out.consensus.collect() | map { "${params.outdir}" } | INTERACTIVE_RESULTS
-    }
+    BARBEQUE(DATABASE.out.db, DATABASE.out.versions, DATABASE.out.taxdump, DATABASE.out.accession_taxonomy)
+    if (interactive) INTERACTIVE_RESULTS
 }
 PIPELINE_COMPLETION()
 ```
 
-## Normal Benchmarking Mode
+## Benchmarking mode (default)
 
-This is the default mode. It requires either `--input` or `--primer_set`, plus either `--dbs` or `--custom_db`.
+This mode needs `--input` or `--primer_set`, plus `--dbs` or `--custom_db`.
 
-High-level flow:
-
-1. `DATABASE` resolves selected reference FASTAs.
-2. Optional `--taxid` filters each database to one taxon and its descendants.
-3. Optional `--db_filter` cleans every selected database.
-4. `BARBEQUE` resolves primers. `--primer_set` downloads and `--input` FASTAs both pass through
-   `PARSE_PRIMERS` into a samplesheet, which `INPUT_CHECK` then validates - see
+1. **Database:** `DATABASE` resolves the reference FASTAs and taxonomy. It then applies the
+   optional `--taxid` restriction, followed by the optional `--db_filter` cleaning.
+2. **Primers:** `--input` FASTAs and `--primer_set` downloads go through `PARSE_PRIMERS`. A
+   samplesheet is used as-is. `INPUT_CHECK` then validates the result. See
    [primer_input.md](primer_input.md).
-5. In-silico PCR runs with `obipcr` and its output is parsed.
-6. Optional `--accession_blocklist` removes matching parsed hits and amplicons.
-7. Retained amplicons can be masked, length-profiled, taxonomically mapped, and clustered.
-8. Cluster membership is joined to accession taxonomy.
-9. Consensus taxonomy, database distribution, optional taxon coverage, optional completeness, and MultiQC reports are written.
+3. **In-silico PCR:** `obipcr` runs once for each primer/database pair.
+4. **Filter:** for primer FASTA input, `FILTER_OBIPCR` drops amplicons that match only the merged
+   degenerate primer. Disable it with `--filter_collapsed_primers false`.
+5. **Parse:** amplicons are parsed into a TSV, with a MultiQC section. Pairs that produced no
+   amplicons are dropped with a warning.
+6. **Optional processing:** dereplication (`--dereplicate_amplicons`) and masking (`--mask`).
+7. **Clustering:** amplicons are clustered with `vsearch --cluster_fast` (`--cluster_id`), and each
+   cluster member is joined to its taxid.
+8. **Consensus:** each cluster gets a consensus taxon (`--consensus_fraction`).
+9. **Reports:**
+   - database taxonomic distribution
+   - optional target-taxon coverage (`--taxon`)
+   - a MultiQC report per primer/database pair, plus one combined report
 
-See [barbeque.md](barbeque.md) for the step-by-step analysis workflow.
+See [barbeque.md](barbeque.md) for the analysis steps in detail.
 
-## Reference Installation Mode
+## Reference installation mode
 
-`--build_references` skips analysis and installs reference assets under:
+`--build_references` skips the analysis. It installs the configured databases, the FooDMe2 primer
+FASTAs and, by default, the NCBI taxdump and accession-to-taxid mapping. Everything goes under:
 
 ```text
 <reference_base>/barbeque/<reference_version>/
 ```
 
-It downloads configured FASTA databases, primer FASTAs from the FooDMe2 catalog, and optionally NCBI taxonomy/accession mapping files. See [build_references.md](build_references.md).
+See [build_references.md](build_references.md).
 
 ## Completion
 
-`PIPELINE_COMPLETION` always runs after the selected workflow. It handles final pipeline bookkeeping and report artefacts.
+`PIPELINE_COMPLETION` always runs last and handles final bookkeeping.

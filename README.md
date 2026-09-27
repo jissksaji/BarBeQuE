@@ -31,9 +31,6 @@ nextflow run bio-raum/BarBeQuE \
   --outdir results
 ```
 
-Add `--accession_blocklist accessions.txt` to remove selected accessions after
-OBI-PCR parsing and keep them out of masking, clustering, taxonomy, and reports.
-
 Install references first when running on a fresh system:
 
 ```bash
