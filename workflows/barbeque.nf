@@ -1,18 +1,27 @@
+// Input: primers and samplesheet
 include { PRIMER_SET } from './../subworkflows/primer_set/main'
 include { PARSE_PRIMERS } from './../modules/parse_primers/main'
 include { INPUT_CHECK } from './../modules/input_check'
 include { STAGE_FILE as STAGE_SAMPLESHEET } from './../modules/helper/stage_file/main'
+
+// In-silico PCR
 include { OBIPCR_INSILICOPCR } from './../modules/obipcr/main'
 include { FILTER_OBIPCR } from './../modules/filter_obipcr/main'
 include { PARSE_OBIPCR } from './../modules/parse_obipcr/main'
 include { OBIPCR_REPORT } from './../modules/obipcr_report/main'
+
+// Amplicon processing
 include { VSEARCH_DEREPLICATION } from './../modules/vsearch/dereplication/main'
 include { MASK } from './../modules/mask/main'
+
+// Clustering and taxonomy
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids/main'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus/main'
+
+// Reporting
 include { CLUSTER_CONSENSUS_REPORTING } from './../modules/cluster_consensus_reporting/main'
 include { DB_DISTRIBUTION } from './../modules/db_distribution/main'
 include { TAXONOMIC_COVERAGE } from './../modules/helper/taxonomic_coverage/main'

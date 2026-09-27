@@ -2,8 +2,6 @@ include { DOWNLOAD_AND_COMBINE_DB } from './../modules/download/main'
 include { UNTAR as UNTAR_TAXDUMP } from './../modules/untar'
 include { GUNZIP as GUNZIP_GENBANK } from './../modules/gunzip'
 
-def enabled(value) { value.toString().toBoolean() }
-
 workflow BUILD_REFERENCES {
 
     // Download every database that has URLs in conf/resources.config.
@@ -40,7 +38,7 @@ workflow BUILD_REFERENCES {
     DOWNLOAD_AND_COMBINE_DB(channel.fromList(downloads))
 
     // Install both NCBI taxonomy files together.
-    if (enabled(params.install_taxdump)) {
+    if (WorkflowPipeline.enabled(params.install_taxdump)) {
         UNTAR_TAXDUMP(channel.of([
             [id: 'new_taxdump'],
             file(params.reference_sources.ncbi_taxdump.url),
