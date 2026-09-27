@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "modules" / "helper" / "cluster_consensus" / "cluster_consensus.py"
+SCRIPT = ROOT / "bin" / "cluster_consensus.py"
 
 
 def load_cluster_consensus():
