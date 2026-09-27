@@ -634,13 +634,13 @@ try:
             if fig_resolution_heatmap is not None:
                 st.plotly_chart(
                     fig_resolution_heatmap,
-                    use_container_width=True,
+                    width="stretch",
                     config=plot_download_config("primer_resolution_matrix"),
                 )
             if fig_resolution_bar is not None:
                 st.plotly_chart(
                     fig_resolution_bar,
-                    use_container_width=True,
+                    width="stretch",
                     config=plot_download_config("primer_resolution_stacked_bar"),
                 )
 
@@ -661,7 +661,7 @@ try:
             display_cols = ["Primer"] + rank_cols + [
                 col for col in summary_cols if col in resolution_detail.columns
             ]
-            st.dataframe(resolution_detail[display_cols], use_container_width=True, hide_index=True)
+            st.dataframe(resolution_detail[display_cols], width="stretch", hide_index=True)
         else:
             st.info("Select at least one primer to show resolution detail.")
 
@@ -685,10 +685,10 @@ try:
         fig_best = compact_plot(fig_best)
         st.plotly_chart(
             fig_best,
-            use_container_width=True,
+            width="stretch",
             config=plot_download_config("best_primers", height=1200),
         )
-        st.dataframe(primer_rankings, use_container_width=True, hide_index=True)
+        st.dataframe(primer_rankings, width="stretch", hide_index=True)
 
         if len(selected_eval_primers) > 0:
             venn_data = filter_venn_data(primer_data, target_taxid_set, selected_eval_primers, selected_ranks, metric)
@@ -707,7 +707,7 @@ try:
                         legend.set_bbox_to_anchor((1.05, 0.5))
                         legend._loc = 6
                     fig_venn.tight_layout()
-                    st.pyplot(fig_venn, use_container_width=False)
+                    st.pyplot(fig_venn, width="content")
                 except Exception as e:
                     st.error(f"Could not draw Venn Diagram: {e}")
                     
@@ -778,10 +778,11 @@ try:
             
             matrix_df = pd.concat([matrix_df, pd.DataFrame([total_row])], ignore_index=True)
             matrix_df["Total"] = matrix_df["Total"].astype(str)
-            st.dataframe(matrix_df, use_container_width=True)
+            st.dataframe(matrix_df, width="stretch")
 
             st.markdown("### Amplicon Length Distribution of Target Taxa")
-            length_dir = Path(DATA_DIR) / "amplicon_lengths"
+            # Real amplicon lengths come from the parsed OBI-PCR tables, as in app.py
+            length_dir = Path(DATA_DIR) / "parsed_obipcr"
             if length_dir.exists():
                 all_merged_data = []
                 for primer in selected_eval_primers:
@@ -810,11 +811,12 @@ try:
                         continue
                     primer_stem = run_stems[0]
                     
-                    length_file = length_dir / f"{primer_stem}.amplicon_lengths.tsv"
+                    length_file = length_dir / f"{primer_stem}.tsv"
                     if not length_file.exists():
                         continue
                         
-                    len_df = pd.read_csv(length_file, sep="\t", header=None, names=["header", "length"])
+                    len_df = pd.read_csv(length_file, sep="\t", usecols=["Sequence_ID", "Amplicon_Length"])
+                    len_df = len_df.rename(columns={"Sequence_ID": "header", "Amplicon_Length": "length"})
                     len_df["seqid"] = len_df["header"].str.split().str[0]
                     len_df["match_id"] = len_df["seqid"].str.replace(r'\.\d+$', '', regex=True)
                     df_records["match_id"] = df_records["seqid"].str.replace(r'\.\d+$', '', regex=True)
@@ -838,7 +840,7 @@ try:
                     fig_lengths = compact_plot(fig_lengths)
                     st.plotly_chart(
                         fig_lengths,
-                        use_container_width=True,
+                        width="stretch",
                         config=plot_download_config("target_amplicon_lengths", height=1200),
                     )
                 else:

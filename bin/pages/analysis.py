@@ -262,11 +262,11 @@ with chart_col:
     )
     rank_pie.update_traces(textposition="inside", textinfo="percent+label")
     rank_pie.update_layout(legend_title_text="Rank", margin=dict(l=20, r=20, t=60, b=20))
-    st.plotly_chart(rank_pie, use_container_width=True)
+    st.plotly_chart(rank_pie, width="stretch")
 
 with summary_col:
     st.subheader("Rank counts")
-    st.dataframe(rank_counts, use_container_width=True, hide_index=True)
+    st.dataframe(rank_counts, width="stretch", hide_index=True)
     st.caption(f"Data source: {data_path}")
 
 st.subheader("Database Representation vs Primer Amplification")
@@ -433,7 +433,7 @@ else:
             )
             st.dataframe(
                 sequence_details[display_columns].drop_duplicates(),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 height=420,
             )
@@ -523,7 +523,7 @@ else:
                                 "accessions",
                             ]
                         ],
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                         height=280,
                     )
@@ -555,7 +555,7 @@ else:
                             xaxis={"tickangle": -70},
                             margin={"l": 90, "r": 20, "t": 70, "b": 130},
                         )
-                        st.plotly_chart(heatmap, use_container_width=True)
+                        st.plotly_chart(heatmap, width="stretch")
                         st.caption(
                             "Rows and columns are ordered along the first PCoA axis, so "
                             "similar sequences sit next to each other and blocks of low "
@@ -598,7 +598,7 @@ else:
                         )
                         pcoa.update_traces(marker={"line": {"width": 1, "color": "#222"}})
                         pcoa.update_layout(height=560)
-                        st.plotly_chart(pcoa, use_container_width=True)
+                        st.plotly_chart(pcoa, width="stretch")
 
                     metadata_download = cluster_metadata.drop(columns=["sequence"])
                     distance_download = pd.DataFrame(
@@ -711,7 +711,7 @@ if search.strip():
     ).any(axis=1)
     filtered_df = filtered_df[search_mask]
 
-st.dataframe(filtered_df, use_container_width=True, hide_index=True, height=440)
+st.dataframe(filtered_df, width="stretch", hide_index=True, height=440)
 st.download_button(
     "Download filtered data",
     data=filtered_df.to_csv(sep="\t", index=False).encode("utf-8"),
