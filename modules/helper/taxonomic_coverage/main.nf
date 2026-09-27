@@ -3,9 +3,6 @@ process TAXONOMIC_COVERAGE {
     //provides taxonomic coverage using ETE toolkit
     //input files: vsearch clusters, db taxids file
     //taxonomy is optional 
-
-    maxForks 1
-    debug true
     cache false
 
     tag "${meta.primer}|${meta.db}"
@@ -19,8 +16,10 @@ process TAXONOMIC_COVERAGE {
     val taxonomy
 
     output:
-    tuple val(meta), path('*.tsv'), emit: tsv
-    tuple val(meta), path('*.nwk'), emit: nwk
+    tuple val(meta), path('*.tax_coverage.tsv'), emit: tsv
+    tuple val(meta), path('*.tax_coverage.nwk'), emit: nwk
+    tuple val(meta), path('*.tax_coverage_summary_mqc.tsv'), emit: mqc_summary
+    tuple val(meta), path('*.tax_coverage_details_mqc.tsv'), emit: mqc_details
     path 'versions.yml', emit: versions
 
     script:
@@ -29,7 +28,8 @@ process TAXONOMIC_COVERAGE {
     ete.py --taxon "${taxonomy}" \\
         --reference "${db_taxids}" \\
         --report "${clusters}" \\
-        --output "${prefix}--${taxonomy}--.tax_coverage"
+        --output "${prefix}--${taxonomy}--.tax_coverage" \\
+        --sample "${meta.primer} (${meta.db})"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
