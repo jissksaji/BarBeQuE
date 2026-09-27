@@ -14,26 +14,31 @@ process PARSE_UC {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.primer}_${meta.db}"
+
     """
     set -euo pipefail
 
+    # Parse VSEARCH .uc output and keep seed (S) and hit (H) records.
+    # Column 9 contains the FASTA sequence label.
+    # Accessions are normalised to match BUILD_DB_TAXIDS:
+    #   AB189069.1                       -> AB189069
+    #   FM163243.1;tax=k:Fungi;          -> FM163243
+    #   AY846379.1.1791                  -> AY846379
     awk -F'\\t' '
         BEGIN { OFS = "\\t" }
+
         \$1 == "S" || \$1 == "H" {
+
+            # Extract the sequence accession.
             acc = \$9
 
-            #  cleanup of accession field
-            # Two rules for this awk block, both learned the hard way:
-            #   1. escape every dollar sign as \\\$ -- an unescaped one (above all a
-            #      dollar immediately followed by a slash) is eaten by Nextflow
-            #      interpolation and silently corrupts the generated script
-            #   2. no apostrophes, not even in comments -- they close the shell quote
-            sub(/;.*/, "", acc)                  # drop everything from the first semicolon:
-                                                 # covers SINTAX headers (ACC;tax=k:...,s:...;)
-                                                 # and the vsearch size annotation (;size=N;)
-            sub(/(\\.[0-9]+)+\$/, "", acc)       # strip version/range (.1, .1.1791, etc.)
+            # Remove annotations after the first semicolon.
+            sub(/;.*/, "", acc)
 
-            #skip empty or *
+            # Remove accession version/range suffixes.
+            sub(/(\\.[0-9]+)+\$/, "", acc)
+
+            # Output cluster ID and cleaned accession.
             if (acc != "*" && acc != "") {
                 print \$2, acc
             }
