@@ -136,7 +136,7 @@
         },
         "custom_db": {
           "type": "string",
-          "description": "A custom database formatted with crabs 1.0.7 and above"
+          "description": "One or more custom nucleotide FASTA databases (.fasta, .fa, .fna) - a single file, a comma-separated list, or a glob"
         },
         "cluster_id": {
           "type": "number",

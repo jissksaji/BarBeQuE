@@ -20,7 +20,7 @@ See [Primer Input](primer_input.md) for the parsing rules and set naming.
 Database input is one of:
 
 - `--dbs`: comma-separated installed database ids from `conf/resources.config`.
-- `--custom_db`: a user-provided FASTA.
+- `--custom_db`: one or more user-provided nucleotide FASTAs (`.fasta`, `.fa`, `.fna`) - a single file, a comma-separated list, or a glob (`'dbs/*.fasta'`). Each is benchmarked separately and its file basename becomes the database name, so those basenames must be unique.
 
 Before primer benchmarking, `DATABASE` can restrict records with `--taxid` and
 apply header/length cleaning to every selected database with `--db_filter`.

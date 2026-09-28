@@ -2,6 +2,7 @@
 Include Modules
 */
 include { DB_FILTER } from './../../modules/seqkit/db_filter'
+//experimental module
 include { TAXID_DB_FILTER } from './../../modules/helper/taxid_db_filter'
 
 workflow DATABASE {
@@ -13,11 +14,9 @@ workflow DATABASE {
     // downstream BARBEQUE workflow. BUILD_REFERENCES installs these two paths
     // together; explicit parameters remain available for custom installations.
     def taxdump_path = params.taxdump ?: params.references.taxdump
-    def accession_path = params.accession_taxonomy ?: (
-        params.reference_base
-            ? "${params.reference_base}/barbeque/${params.reference_version}/taxonomy/nucl_gb.accession2taxid"
-            : null
-    )
+    def accession_path = params.accession_taxonomy ?: (params.reference_base
+        ? "${params.reference_base}/barbeque/${params.reference_version}/taxonomy/nucl_gb.accession2taxid"
+        : null)
 
     if (!accession_path) {
         log.error("No accession-to-taxonomy mapping found - provide --accession_taxonomy <file>, or rebuild the taxonomy references")
@@ -35,8 +34,16 @@ workflow DATABASE {
     // Pre-installed can be a list, coma-separated:  db1,db2,db3
     these_dbs = []
     if (params.custom_db) {
-        def custom_file = file(params.custom_db, checkIfExists: true)
-        these_dbs << [["id": custom_file.baseName], custom_file]
+        // One FASTA, a comma-separated list, or a glob. `files()` always returns a list, so
+        // each custom database becomes its own entry and is benchmarked separately - the same
+        // shape --dbs produces below.
+        params.custom_db
+            .split(",")
+            .each { pattern ->
+                files(pattern.trim(), checkIfExists: true).each { custom_file ->
+                    these_dbs << [["id": custom_file.baseName], custom_file]
+                }
+            }
     }
     else if (params.dbs) {
         valid_databases = params.references.databases.keySet()
@@ -59,6 +66,13 @@ workflow DATABASE {
                 ]
             }
     }
+    // Database names go into every output path, so a collision would overwrite results.
+    def duplicate_ids = these_dbs.countBy { entry -> entry[0].id }.findAll { _id, count -> count > 1 }.keySet()
+    if (duplicate_ids) {
+        log.error("Duplicate database name(s): ${duplicate_ids.join(', ')} - every database needs a unique file basename")
+        System.exit(1)
+    }
+
     ch_dbs = channel.fromList(these_dbs)
 
     // Restrict every selected/custom db to a single taxon (and its descendants) before anything
