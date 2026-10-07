@@ -228,26 +228,30 @@ def write_mqc_tsv(filename, config_lines, header, values):
         writer.writerow(values)
 
 
-def write_resolution_report(prefix, sample, percentages):
+def write_resolution_report(prefix, sample, rank_counts):
     config = [
         'id: "cluster_consensus_resolution"',
         'parent_id: "cluster_consensus"',
         'parent_name: "Cluster Consensus"',
         'section_name: "Overall Taxonomic Resolution"',
         (
-            'description: "Percentage of clusters resolving at each taxonomic '
-            'level, plus unclassified and other ranks."'
+            'description: "Number and percentage of clusters resolving at each '
+            'taxonomic level, plus unclassified and other ranks. Use the plot '
+            'toggle to switch between percentages and cluster counts."'
         ),
         'plot_type: "bargraph"',
         'pconfig:',
         '  id: "cluster_consensus_resolution_plot"',
         '  title: "Cluster Consensus: Taxonomic Resolution"',
-        '  ylab: "Clusters (%)"',
-        '  ymax: 100',
+        '  ylab: "Clusters"',
+        '  cpswitch: true',
+        '  cpswitch_c_active: false',
+        '  cpswitch_counts_label: "Number of clusters"',
+        '  cpswitch_percent_label: "Percentage of clusters"',
     ]
     header = ["Primer / Database", *REPORT_CATEGORIES]
     values = [sample] + [
-        round(percentages[category], 2)
+        rank_counts[category]
         for category in REPORT_CATEGORIES
     ]
     write_mqc_tsv(
@@ -329,7 +333,7 @@ def main():
     print(f"Taxonomic resolution percentages: {dict(percentages)}")
     print(f"Cluster size distribution: {dict(size_counts)}")
 
-    write_resolution_report(args.output_prefix, args.sample, percentages)
+    write_resolution_report(args.output_prefix, args.sample, rank_counts)
     write_summary_report(args.output_prefix, args.sample, cluster_ranks, rank_counts)
     write_cluster_size_report(args.output_prefix, args.sample, size_counts)
 
