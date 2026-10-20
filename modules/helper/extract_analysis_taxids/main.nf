@@ -11,10 +11,19 @@ process EXTRACT_ANALYSIS_TAXIDS {
 
     output:
     path "*_*.fasta"
+    path "analysis_taxids_report.tsv"
 
     script:
     """
-    for taxid in ${taxids}; do
+    # Start the report with a header line
+    # Each TaxID adds one row: taxid, name, number of sequences extracted
+
+    echo -e "taxid\\tname\\tsequences" > analysis_taxids_report.tsv
+
+    # The TaxIDs are comma-separated, e.g. 4442,4441
+    # tr turns the commas into spaces so the loop gets one TaxID at a time
+
+    for taxid in \$(echo ${taxids} | tr ',' ' '); do
 
         # Get the scientific name of the TaxID
         # Example: 4442 becomes Camellia_sinensis
@@ -27,6 +36,14 @@ process EXTRACT_ANALYSIS_TAXIDS {
 
         rank=\$(echo \$taxid | taxonkit lineage -r -L --data-dir ${taxdump} | cut -f2)
 
+        # If the TaxID is not in the taxdump, the name is empty
+        # Write it to the report and go to the next TaxID
+
+        if [ -z "\$name" ]; then
+            echo -e "\$taxid\\tnot a valid taxid\\t0" >> analysis_taxids_report.tsv
+            continue
+        fi
+
         # Find the TaxID and all TaxIDs below it in the taxonomy tree
         # Example: a genus includes all species belonging to that genus
         # Save all these TaxIDs in taxids.txt
@@ -37,8 +54,9 @@ process EXTRACT_ANALYSIS_TAXIDS {
         # grep searches for matching TaxIDs in the accession-taxid file
         # cut -f1 keeps only the first column (accession numbers)
         # Save the matching accessions in accessions.txt
+        # || true: finding no accessions is not an error, the report will show 0
 
-        grep -wFf taxids.txt ${accession_taxid} | cut -f1 > accessions.txt
+        grep -wFf taxids.txt ${accession_taxid} | cut -f1 > accessions.txt || true
 
         # Extract FASTA sequences whose IDs match accessions.txt
         # --id-regexp extracts the accession without the version number
@@ -47,6 +65,12 @@ process EXTRACT_ANALYSIS_TAXIDS {
         # Save the sequences in a separate FASTA file for each TaxID
         
         seqkit grep --id-regexp '^(\\w+)' -f accessions.txt ${fasta} > \${taxid}_\${name}_\${rank}.fasta
+
+        # Count the sequences extracted (0 if none were found)
+        # and add a row to the report
+
+        count=\$(grep -c '>' \${taxid}_\${name}_\${rank}.fasta || true)
+        echo -e "\$taxid\\t\$name\\t\$count" >> analysis_taxids_report.tsv
 
     done
     """
