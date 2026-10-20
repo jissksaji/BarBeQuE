@@ -75,6 +75,14 @@
           "pattern": "^([0-9,]+|.+\\.txt)$",
           "description": "Taxids (numbers only), comma-separated, e.g. 4442,4441, or a .txt file with one taxid per line"
         },
+        "coverage_identity": {
+          "type": "number",
+          "description": "Coverage analysis: minimum % identity of a centroid hit on an analysis taxid record"
+        },
+        "coverage_query_cov": {
+          "type": "number",
+          "description": "Coverage analysis: minimum % of the centroid that one hit must cover"
+        },
         "list_dbs": {
           "type": "boolean",
           "description": "List installed databases and exit"

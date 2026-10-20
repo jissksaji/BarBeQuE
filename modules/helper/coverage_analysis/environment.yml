@@ -1,0 +1,6 @@
+name: coverage_analysis
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - blast
