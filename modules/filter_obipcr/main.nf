@@ -9,10 +9,10 @@ process FILTER_OBIPCR {
     tuple val(meta), path(raw_fasta), path(primer_input)
 
     output:
-    tuple val(meta), path('*_filtered_raw.fasta')     , emit: raw_fasta
+    tuple val(meta), path('*_filtered_raw.fasta'), emit: raw_fasta
     tuple val(meta), path('*_filtered_insilico.fasta'), emit: fasta
-    tuple val(meta), path('*_filter_stats.tsv')       , emit: stats
-    path ('versions.yml')                             , emit: versions
+    tuple val(meta), path('*_filter_stats.tsv'), emit: stats
+    path ('versions.yml'), emit: versions
 
     script:
     def args = task.ext.args ?: ''
@@ -20,7 +20,7 @@ process FILTER_OBIPCR {
     """
     set -euo pipefail
 
-    filter_obipcr.py \\
+    filter_obipcr_simple.py \\
         ${args} \\
         --amplicons ${raw_fasta} \\
         --primer-input ${primer_input} \\

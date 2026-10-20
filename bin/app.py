@@ -999,14 +999,13 @@ else:
         return len([position for position in str(value).split(",") if position.strip()])
 
     def _corrected_mismatch_positions(dataframe, side):
-        """Use stored positions, repairing legacy rows that disagree with OBI-PCR."""
+        """Use stored 5' positions, repairing legacy rows that disagree with OBI-PCR."""
         from_5prime = dataframe[f"{side}_Mismatch_Positions_Primer"].astype("object").copy()
-        from_3prime = dataframe[f"{side}_Mismatch_From_3Prime"].astype("object").copy()
         reported_errors = pd.to_numeric(
             dataframe[f"{side}_Errors"],
             errors="coerce",
         )
-        recorded_errors = from_3prime.map(_position_count)
+        recorded_errors = from_5prime.map(_position_count)
         needs_recalculation = reported_errors.notna() & reported_errors.ne(recorded_errors)
 
         for index in dataframe.index[needs_recalculation]:
@@ -1016,24 +1015,18 @@ else:
                 continue
             # find_mismatches compares bases case-sensitively, and older TSVs stored
             # the match in lowercase, so uppercase both before comparing.
-            positions_5prime, positions_3prime = find_mismatches(
+            positions_5prime, _ = find_mismatches(
                 str(primer).replace("#", "").upper(),
                 str(match).upper(),
             )
-            # Already comma-joined strings ("None" when there is no mismatch).
+            # Already a comma-joined string ("None" when there is no mismatch).
             from_5prime.at[index] = positions_5prime
-            from_3prime.at[index] = positions_3prime
 
-        return (
-            _explode_mismatch_positions(from_5prime),
-            _explode_mismatch_positions(from_3prime),
-        )
+        return _explode_mismatch_positions(from_5prime)
 
     mismatch_position_columns = {
         "Forward_Mismatch_Positions_Primer",
         "Reverse_Mismatch_Positions_Primer",
-        "Forward_Mismatch_From_3Prime",
-        "Reverse_Mismatch_From_3Prime",
         "Forward_Primer",
         "Reverse_Primer",
         "Forward_Match",
@@ -1043,11 +1036,13 @@ else:
     }
     if mismatch_position_columns <= set(obipcr_df.columns):
         st.markdown("**Mismatch frequency by distance from the primer's 3' end**")
-        _, fw_pos = _corrected_mismatch_positions(obipcr_df, "Forward")
-        _, rv_pos = _corrected_mismatch_positions(obipcr_df, "Reverse")
+        # Mismatch positions counted from the 5' end (1 = first base)
+        fw_pos = _corrected_mismatch_positions(obipcr_df, "Forward")
+        rv_pos = _corrected_mismatch_positions(obipcr_df, "Reverse")
 
-        fw_terminal_mismatches = int(fw_pos.le(3).sum())
-        rv_terminal_mismatches = int(rv_pos.le(3).sum())
+        # The final 3 bases are the last 3 positions from the 5' end
+        fw_terminal_mismatches = int(fw_pos.gt(fw_primer_len - 3).sum())
+        rv_terminal_mismatches = int(rv_pos.gt(rv_primer_len - 3).sum())
         terminal_1, terminal_2 = st.columns(2)
         terminal_1.metric(
             "Fwd mismatches in final 3 bases",
@@ -1072,7 +1067,7 @@ else:
                 return (
                     positions.value_counts()
                     .reindex(range(1, primer_length + 1), fill_value=0)
-                    .rename_axis("position")
+                    .rename_axis("position_from_5prime")
                     .reset_index(name="count")
                     .assign(Primer=primer)
                 )
@@ -1088,20 +1083,21 @@ else:
                 "Forward": fw_primer_len,
                 "Reverse": rv_primer_len,
             }
-            pos_counts["position_from_5prime"] = pos_counts.apply(
-                lambda row: primer_lengths[row["Primer"]] - row["position"] + 1,
+            # Distance from the 3' end, for the summary table (last base = 1)
+            pos_counts["distance_from_3prime"] = pos_counts.apply(
+                lambda row: primer_lengths[row["Primer"]] - row["position_from_5prime"] + 1,
                 axis=1,
             )
 
             mp1, mp2 = st.columns(2)
             mp1.metric(
                 "Most common Fwd mismatch position",
-                f"{fw_primer_len - int(fw_pos.mode().iloc[0]) + 1} bp from 5' end"
+                f"{int(fw_pos.mode().iloc[0])} bp from 5' end"
                 if not fw_pos.empty else "—",
             )
             mp2.metric(
                 "Most common Rev mismatch position",
-                f"{rv_primer_len - int(rv_pos.mode().iloc[0]) + 1} bp from 5' end"
+                f"{int(rv_pos.mode().iloc[0])} bp from 5' end"
                 if not rv_pos.empty else "—",
             )
 
@@ -1134,7 +1130,7 @@ else:
                 position_summary.rename(
                     columns={
                         "position_from_5prime": "Position from 5' end",
-                        "position": "Distance from 3' end",
+                        "distance_from_3prime": "Distance from 3' end",
                         "count": "Mismatches",
                         "percentage": "Amplicons with mismatch (%)",
                     }

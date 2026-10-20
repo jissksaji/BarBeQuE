@@ -12,14 +12,12 @@ FIELDS = [
     "Forward_Match",
     "Forward_Errors",
     "Forward_Mismatch_Positions_Primer",
-    "Forward_Mismatch_From_3Prime",
     "Forward_Primer_GC",
     "Forward_Match_GC",
     "Reverse_Primer",
     "Reverse_Match",
     "Reverse_Errors",
     "Reverse_Mismatch_Positions_Primer",
-    "Reverse_Mismatch_From_3Prime",
     "Reverse_Primer_GC",
     "Reverse_Match_GC",
     "Amplicon_GC",
@@ -156,13 +154,13 @@ def parse_fasta(input_fasta, output_tsv):
                 reverse_match = metadata["reverse_match"]
                 reverse_errors = metadata["reverse_error"]
 
-                # Calculate mismatch positions
-                forward_mismatch, forward_mismatch_3prime = find_mismatches(
+                # Calculate mismatch positions (counted from the 5' end)
+                forward_mismatch, _ = find_mismatches(
                     forward_primer,
                     forward_match
                 )
 
-                reverse_mismatch, reverse_mismatch_3prime = find_mismatches(
+                reverse_mismatch, _ = find_mismatches(
                     reverse_primer,
                     reverse_match
                 )
@@ -176,7 +174,6 @@ def parse_fasta(input_fasta, output_tsv):
                     forward_match,
                     forward_errors,
                     forward_mismatch,
-                    forward_mismatch_3prime,
                     calculate_gc(forward_primer),
                     calculate_gc(forward_match),
 
@@ -184,7 +181,6 @@ def parse_fasta(input_fasta, output_tsv):
                     reverse_match,
                     reverse_errors,
                     reverse_mismatch,
-                    reverse_mismatch_3prime,
                     calculate_gc(reverse_primer),
                     calculate_gc(reverse_match)
                 ]
