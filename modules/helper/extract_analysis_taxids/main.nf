@@ -1,6 +1,9 @@
 process EXTRACT_ANALYSIS_TAXIDS {
 
-    publishDir "${params.outdir}/analysis_taxids", mode: 'copy'
+    tag "${taxids}"
+    label 'short_serial'
+
+    publishDir "${params.outdir}/analysis_taxids", mode: 'copy', pattern: '*.fasta'
 
     conda "${moduleDir}/environment.yml"
 
@@ -10,11 +13,13 @@ process EXTRACT_ANALYSIS_TAXIDS {
     val taxids
 
     output:
-    path "*_*.fasta"
-    path "analysis_taxids_report.tsv"
+    path "*_*.fasta", emit: fasta, optional: true
+    path "analysis_taxids_report.tsv", emit: report
+    path "versions.yml", emit: versions
 
     script:
     """
+
     # Start the report with a header line
     # Each TaxID adds one row: taxid, name, number of sequences extracted
 
@@ -70,8 +75,16 @@ process EXTRACT_ANALYSIS_TAXIDS {
         # and add a row to the report
 
         count=\$(grep -c '>' \${taxid}_\${name}_\${rank}.fasta || true)
-        echo -e "\$taxid\\t\$name\\t\$count" >> analysis_taxids_report.tsv
+        # In the report, write the name with spaces: Camellia_sinensis -> Camellia sinensis
+        echo -e "\$taxid\\t\${name//_/ }\\t\$count" >> analysis_taxids_report.tsv
 
     done
+
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        taxonkit: \$(taxonkit version | sed 's/taxonkit v//')
+        seqkit: \$(seqkit version | sed 's/seqkit v//')
+    END_VERSIONS
     """
 }
