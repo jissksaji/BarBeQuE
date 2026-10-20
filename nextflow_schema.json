@@ -70,6 +70,11 @@
           "type": "integer",
           "description": "Restrict --dbs/--custom_db to this taxid (and its descendants) before analysis, so only that taxon is analysed/checked"
         },
+        "analysis_taxids": {
+          "type": ["string", "integer"],
+          "pattern": "^([0-9,]+|.+\\.txt)$",
+          "description": "Taxids (numbers only), comma-separated, e.g. 4442,4441, or a .txt file with one taxid per line"
+        },
         "list_dbs": {
           "type": "boolean",
           "description": "List installed databases and exit"

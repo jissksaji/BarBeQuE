@@ -16,6 +16,7 @@ include { MASK } from './../modules/mask/main'
 
 // Clustering and taxonomy
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids/main'
+include { EXTRACT_ANALYSIS_TAXIDS } from './../modules/helper/extract_analysis_taxids/main'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
@@ -165,6 +166,15 @@ workflow BARBEQUE {
     BUILD_DB_TAXIDS(ch_dbs, ch_accession_taxonomy)
     ch_versions = ch_versions.mix(BUILD_DB_TAXIDS.out.versions)
 
+    // Extract the database records of the --analysis_taxids (and the taxa below them).
+    if (params.analysis_taxids) {
+        taxids = params.analysis_taxids.toString()
+        if (taxids.endsWith('.txt')) {
+            taxids = file(taxids).readLines().join(',')
+        }
+        EXTRACT_ANALYSIS_TAXIDS(ch_dbs.join(BUILD_DB_TAXIDS.out.accession_taxid), ch_taxdump, taxids)
+    }
+
     // Cluster amplicons and parse cluster membership rows.
     VSEARCH_CLUSTER_FAST(ch_amplicons)
     ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
@@ -191,7 +201,6 @@ workflow BARBEQUE {
         CLUSTER_CONSENSUS_REPORTING.out.summary,
         CLUSTER_CONSENSUS_REPORTING.out.cluster_size,
         CLUSTER_CONSENSUS_REPORTING.out.taxon_search,
-        // CLUSTER_CONSENSUS_REPORTING.out.amplified_taxa, // Disabled: makes reports slow.
     )
 
     // Summarize taxid distribution for each database.
