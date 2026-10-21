@@ -18,6 +18,8 @@ include { MASK } from './../modules/mask/main'
 include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids/main'
 include { EXTRACT_ANALYSIS_TAXIDS } from './../modules/helper/extract_analysis_taxids/main'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
+include { MAKEBLASTDB } from './../modules/blast/makeblastdb/main'
+include { COVERAGE_ANALYSIS } from './../modules/helper/coverage_analysis/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus/main'
@@ -170,14 +172,40 @@ workflow BARBEQUE {
     if (params.analysis_taxids) {
         taxids = params.analysis_taxids.toString()
         if (taxids.endsWith('.txt')) {
-            taxids = file(taxids).readLines().join(',')
+            taxids = file(taxids).text
         }
-        EXTRACT_ANALYSIS_TAXIDS(ch_dbs.join(BUILD_DB_TAXIDS.out.accession_taxid), ch_taxdump, taxids)
+
+        // One item per taxid: split on commas, spaces and new lines
+        // Example: "271192,211815" -> 271192 and 211815 (two tasks)
+        ch_taxids = channel.fromList(taxids.tokenize(', \n'))
+
+        // .first(): the database is reused for every taxid
+        EXTRACT_ANALYSIS_TAXIDS(ch_dbs.join(BUILD_DB_TAXIDS.out.accession_taxid).first(), ch_taxdump, ch_taxids)
+        ch_versions = ch_versions.mix(EXTRACT_ANALYSIS_TAXIDS.out.versions)
+
+        // Put all report rows into one table
+        EXTRACT_ANALYSIS_TAXIDS.out.report.collectFile(
+            name: 'analysis_taxids_report.tsv', keepHeader: true, storeDir: "${params.outdir}/analysis_taxids"
+        )
     }
 
     // Cluster amplicons and parse cluster membership rows.
     VSEARCH_CLUSTER_FAST(ch_amplicons)
     ch_versions = ch_versions.mix(VSEARCH_CLUSTER_FAST.out.versions)
+
+    // Check how many records of each analysis taxid have the amplicon region.
+    if (params.analysis_taxids) {
+        MAKEBLASTDB(EXTRACT_ANALYSIS_TAXIDS.out.fasta.flatten())
+        ch_versions = ch_versions.mix(MAKEBLASTDB.out.versions)
+
+        COVERAGE_ANALYSIS(VSEARCH_CLUSTER_FAST.out.centroids.combine(MAKEBLASTDB.out.db))
+        ch_versions = ch_versions.mix(COVERAGE_ANALYSIS.out.versions)
+
+        // Put all rows into one table
+        COVERAGE_ANALYSIS.out.tsv.collectFile(
+            name: 'coverage_analysis.tsv', keepHeader: true, storeDir: "${params.outdir}/coverage_analysis"
+        )
+    }
 
     PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)
     ch_versions = ch_versions.mix(PARSE_UC.out.versions)
