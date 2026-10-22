@@ -3,16 +3,16 @@ process COVERAGE_ANALYSIS {
     tag "${meta.primer}|${name}"
     label 'short_parallel'
 
-    publishDir "${params.outdir}/coverage_analysis/blast", mode: 'copy', pattern: '*.blast.tsv'
-
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(centroids), val(name), path(fasta), path(db)
+    tuple val(meta), path(centroids), path(obipcr_tsv), val(name), path(fasta), path(db)
 
     output:
     path "*.coverage.tsv", emit: tsv
     path "*.blast.tsv", emit: blast
+    tuple val(meta), path("*.with_region.fasta"), path("*.no_region.fasta"), path("*.with_barcode_not_amplified.fasta"), emit: split
+    tuple val(meta), path("*.with_barcode_not_amplified.fasta"), path("*.coverage.tsv"), emit: not_amplified
     path "versions.yml", emit: versions
 
     script:
@@ -28,11 +28,12 @@ process COVERAGE_ANALYSIS {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         blastn: \$(blastn -version | head -n 1 | sed 's/blastn: //')
+        seqkit: \$(seqkit version | sed 's/seqkit v//')
     END_VERSIONS
 
     # Start the report with a header line
 
-    echo -e "primer\\ttaxid\\tname\\trank\\trecords\\twith_region" > ${meta.primer}_${name}.coverage.tsv
+    echo -e "primer\\ttaxid\\tname\\trank\\trecords_db\\twith_region_blast\\tamplified_obipcr\\twith_barcode_not_amplified" > ${meta.primer}_${name}.coverage.tsv
 
     # Start the BLAST table with a header line (it stays like this for an empty taxid file)
 
@@ -42,10 +43,12 @@ process COVERAGE_ANALYSIS {
 
     records=\$(grep -c '>' ${fasta} || true)
 
-    # Empty taxid file: nothing to search, so the report row is 0 and 0
+    # Empty taxid file: nothing to search, so the report row is all 0
+    # and all FASTAs stay empty
 
     if [ "\$records" -eq 0 ]; then
-        echo -e "${meta.primer}\\t${taxid}\\t${taxon_name}\\t${rank}\\t0\\t0" >> ${meta.primer}_${name}.coverage.tsv
+        touch ${meta.primer}_${name}.with_region.fasta ${meta.primer}_${name}.no_region.fasta ${meta.primer}_${name}.with_barcode_not_amplified.fasta
+        echo -e "${meta.primer}\\t${taxid}\\t${taxon_name}\\t${rank}\\t0\\t0\\t0\\t0" >> ${meta.primer}_${name}.coverage.tsv
         exit 0
     fi
 
@@ -63,11 +66,35 @@ process COVERAGE_ANALYSIS {
         -num_threads ${task.cpus} \\
         -outfmt "6 qseqid sseqid pident qcovhsp length qlen sstart send" >> ${meta.primer}_${name}.blast.tsv
 
-    # Count each record once, even if several centroids hit it
+    # List the records that have the region, each record once (even if several centroids hit it)
     # tail skips the header line, cut -f2 keeps the record column
-    
-    with_region=\$(tail -n +2 ${meta.primer}_${name}.blast.tsv | cut -f2 | sort -u | wc -l)
 
-    echo -e "${meta.primer}\\t${taxid}\\t${taxon_name}\\t${rank}\\t\$records\\t\$with_region" >> ${meta.primer}_${name}.coverage.tsv
+    tail -n +2 ${meta.primer}_${name}.blast.tsv | cut -f2 | sort -u > with_region.txt
+
+    # Split the taxid FASTA into two files, with the full records unchanged
+    # -f with_region.txt: keep the records in the list
+    # -v: keep the records NOT in the list
+
+    seqkit grep -f with_region.txt ${fasta} > ${meta.primer}_${name}.with_region.fasta
+    seqkit grep -v -f with_region.txt ${fasta} > ${meta.primer}_${name}.no_region.fasta
+
+    # Count the records with the region
+
+    with_region=\$(wc -l < with_region.txt)
+
+    # Count the taxid records that gave an amplicon
+    # Records, not amplicons: a record can give more than one amplicon, so each accession once
+    # tail skips the header line, cut -f1 keeps the Sequence_ID column
+
+    tail -n +2 ${obipcr_tsv} | cut -f1 | sort -u > amplified.txt
+    amplified=\$(seqkit grep -f amplified.txt ${fasta} | grep -c '>' || true)
+
+    # Records with the region that gave no amplicon (with_region minus amplified)
+    # -v: keep the records NOT in the amplified list
+
+    seqkit grep -v -f amplified.txt ${meta.primer}_${name}.with_region.fasta > ${meta.primer}_${name}.with_barcode_not_amplified.fasta
+    not_amplified=\$(grep -c '>' ${meta.primer}_${name}.with_barcode_not_amplified.fasta || true)
+
+    echo -e "${meta.primer}\\t${taxid}\\t${taxon_name}\\t${rank}\\t\$records\\t\$with_region\\t\$amplified\\t\$not_amplified" >> ${meta.primer}_${name}.coverage.tsv
     """
 }
