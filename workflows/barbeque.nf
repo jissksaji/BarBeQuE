@@ -20,6 +20,7 @@ include { EXTRACT_ANALYSIS_TAXIDS } from './../modules/helper/extract_analysis_t
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
 include { MAKEBLASTDB } from './../modules/blast/makeblastdb/main'
 include { COVERAGE_ANALYSIS } from './../modules/helper/coverage_analysis/main'
+include { PRIMER_BINDING } from './../modules/helper/primer_binding/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus/main'
@@ -198,11 +199,16 @@ workflow BARBEQUE {
         MAKEBLASTDB(EXTRACT_ANALYSIS_TAXIDS.out.fasta.flatten())
         ch_versions = ch_versions.mix(MAKEBLASTDB.out.versions)
 
-        COVERAGE_ANALYSIS(VSEARCH_CLUSTER_FAST.out.centroids.combine(MAKEBLASTDB.out.db))
+        // .join: add the obipcr table of the same primer, to count the amplified records
+        COVERAGE_ANALYSIS(VSEARCH_CLUSTER_FAST.out.centroids.join(PARSE_OBIPCR.out.tsv).combine(MAKEBLASTDB.out.db))
         ch_versions = ch_versions.mix(COVERAGE_ANALYSIS.out.versions)
 
-        // Put all rows into one table
-        COVERAGE_ANALYSIS.out.tsv.collectFile(
+        // Which primer binds in the records with the barcode but no amplicon?
+        PRIMER_BINDING(COVERAGE_ANALYSIS.out.not_amplified)
+        ch_versions = ch_versions.mix(PRIMER_BINDING.out.versions)
+
+        // Put all rows into one table (the coverage rows with the primer binding columns)
+        PRIMER_BINDING.out.coverage.collectFile(
             name: 'coverage_analysis.tsv', keepHeader: true, storeDir: "${params.outdir}/coverage_analysis"
         )
     }
