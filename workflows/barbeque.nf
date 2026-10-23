@@ -19,7 +19,10 @@ include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids/main'
 include { EXTRACT_ANALYSIS_TAXIDS } from './../modules/helper/extract_analysis_taxids/main'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
 include { MAKEBLASTDB } from './../modules/blast/makeblastdb/main'
+include { MAKEBLASTDB as MAKEBLASTDB_MAIN } from './../modules/blast/makeblastdb/main'
 include { COVERAGE_ANALYSIS } from './../modules/helper/coverage_analysis/main'
+include { TAXONOMIC_COVERAGE_BLAST } from './../modules/helper/taxonomic_coverage_blast/main'
+include { TAXONOMIC_COVERAGE_REPORT_BLAST } from './../modules/helper/taxonomic_coverage_report_blast/main'
 include { PRIMER_BINDING } from './../modules/helper/primer_binding/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
@@ -211,6 +214,34 @@ workflow BARBEQUE {
         PRIMER_BINDING.out.coverage.collectFile(
             name: 'coverage_analysis.tsv', keepHeader: true, storeDir: "${params.outdir}/coverage_analysis"
         )
+    }
+
+    // Which database records have the barcode region? Search the centroids against the whole database
+    if (WorkflowPipeline.enabled(params.taxonomic_coverage_blast)) {
+        MAKEBLASTDB_MAIN(ch_dbs.map { _meta, fasta -> fasta })
+        ch_versions = ch_versions.mix(MAKEBLASTDB_MAIN.out.versions)
+
+        // Add the database name to each BLAST index (MAKEBLASTDB only knows the file name)
+        // .join matches on the file name and keeps it once
+        // Example: [its2.cleaned, its2, its2.cleaned.fasta, db/] -> [its2, its2.cleaned, its2.cleaned.fasta, db/]
+        ch_blastdb = ch_dbs
+            .map { meta, fasta -> [fasta.baseName, meta.id] }
+            .join(MAKEBLASTDB_MAIN.out.db)
+            .map { name, id, fasta, db -> [id, name, fasta, db] }
+
+        // Pair each primer's centroids with the BLAST index of its own database
+        TAXONOMIC_COVERAGE_BLAST(
+            VSEARCH_CLUSTER_FAST.out.centroids
+                .map { meta, centroids -> [meta.db, meta, centroids] }
+                .combine(ch_blastdb, by: 0)
+                .map { _id, meta, centroids, name, fasta, db -> [meta, centroids, name, fasta, db] }
+        )
+        ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE_BLAST.out.versions)
+
+        // Compare with the obipcr amplicons: .join adds the obipcr table of the same primer
+        TAXONOMIC_COVERAGE_REPORT_BLAST(TAXONOMIC_COVERAGE_BLAST.out.accessions.join(PARSE_OBIPCR.out.tsv))
+        ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE_REPORT_BLAST.out.versions)
+        multiqc_files = multiqc_files.mix(TAXONOMIC_COVERAGE_REPORT_BLAST.out.tsv)
     }
 
     PARSE_UC(VSEARCH_CLUSTER_FAST.out.uc)

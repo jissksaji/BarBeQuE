@@ -38,7 +38,7 @@ process OBIPCR_INSILICOPCR {
 
     def fwd_primer = clamp_3prime(meta.fwd, fixed_3prime)
     def rev_primer = clamp_3prime(meta.rev, fixed_3prime)
-    def flanking_arg = WorkflowPipeline.enabled(params.obipcr_only_complete_flanking) ? '--only-complete-flanking' : ''
+    def circular_arg = WorkflowPipeline.enabled(params.obipcr_circular) ? '--circular' : ''
 
     """
     obipcr ${args} \\
@@ -51,7 +51,7 @@ process OBIPCR_INSILICOPCR {
         --fasta-output \\
         --no-progressbar \\
         --skip-empty \\
-        ${flanking_arg} \\
+        ${circular_arg} \\
         "${db}" \\
         | tee "${prefix}_raw.fasta" \\
         | seqkit replace -p '_sub\\[.*' -r '' \\
