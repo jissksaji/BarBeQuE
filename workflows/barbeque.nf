@@ -23,6 +23,7 @@ include { COVERAGE_ANALYSIS } from './../modules/helper/coverage_analysis/main'
 include { TAXONOMIC_COVERAGE_BLAST } from './../modules/helper/taxonomic_coverage_blast/main'
 include { TAXONOMIC_COVERAGE_REPORT_BLAST } from './../modules/helper/taxonomic_coverage_report_blast/main'
 include { PRIMER_BINDING } from './../modules/helper/primer_binding/main'
+include { PRIMER_SITE_CHECK } from './../modules/helper/primer_site_check/main'
 include { PARSE_UC } from './../modules/helper/parse_uc/main'
 include { JOIN_ACCESSION_TAXONOMY } from './../modules/helper/join_accession_taxonomy/main'
 include { CLUSTER_CONSENSUS } from './../modules/helper/cluster_consensus/main'
@@ -218,6 +219,22 @@ workflow BARBEQUE {
         PRIMER_BINDING.out.coverage.collectFile(
             name: 'coverage_analysis.tsv', keepHeader: true, storeDir: "${params.outdir}/coverage_analysis"
         )
+
+        // EXPERIMENTAL: why did a primer not bind? Check the place where each primer should sit
+        PRIMER_SITE_CHECK(COVERAGE_ANALYSIS.out.site_check)
+        ch_versions = ch_versions.mix(PRIMER_SITE_CHECK.out.versions)
+
+        // Put all rows into one table
+        PRIMER_SITE_CHECK.out.tsv.collectFile(
+            name: 'primer_sites.tsv', keepHeader: true, storeDir: "${params.outdir}/coverage_analysis"
+        )
+
+        // All MISMATCH sites of all taxids, one forward and one reverse FASTA per primer pair
+        // ITS2_collapsed_3750_Malus_domestica_species.forward_mismatch_sites.fasta -> ITS2_collapsed.forward_mismatch_sites.fasta
+        // The primer lines at the top of each file are left out, so they are not repeated
+        PRIMER_SITE_CHECK.out.fasta.transpose().collectFile(storeDir: "${params.outdir}/coverage_analysis/primer_mismatch_sites_all") { meta, fasta ->
+            ["${meta.primer}.${fasta.name.find(/(forward|reverse)_mismatch_sites.fasta/)}", fasta.text.replaceAll(/>PRIMER_.*\n.*\n/, '')]
+        }
     }
 
     // Search core_nt within the configured taxon for records matching each centroid.
