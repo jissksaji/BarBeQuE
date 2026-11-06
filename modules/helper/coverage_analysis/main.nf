@@ -12,7 +12,8 @@ process COVERAGE_ANALYSIS {
     path "*.coverage.tsv", emit: tsv
     path "*.blast.tsv", emit: blast
     tuple val(meta), path("*.with_region.fasta"), path("*.no_region.fasta"), path("*.with_barcode_not_amplified.fasta"), emit: split
-    tuple val(meta), path("*.with_barcode_not_amplified.fasta"), path("*.coverage.tsv"), emit: not_amplified
+    tuple val(meta), path("*.with_barcode_not_amplified.fasta"), path("*.coverage.tsv"), path(obipcr_tsv), emit: not_amplified
+    tuple val(meta), path("*.with_barcode_not_amplified.fasta"), path("*.blast.tsv"), path(obipcr_tsv), emit: site_check
     path "versions.yml", emit: versions
 
     script:
@@ -37,7 +38,7 @@ process COVERAGE_ANALYSIS {
 
     # Start the BLAST table with a header line (it stays like this for an empty taxid file)
 
-    echo -e "centroid\\trecord\\tidentity\\tcentroid_cov\\taligned\\tcentroid_len\\trecord_from\\trecord_to" > ${meta.primer}_${name}.blast.tsv
+    echo -e "centroid\\trecord\\tidentity\\tcentroid_cov\\taligned\\tcentroid_len\\trecord_from\\trecord_to\\tcentroid_from\\tcentroid_to\\tbitscore" > ${meta.primer}_${name}.blast.tsv
 
     # Count the records in the taxid file
 
@@ -64,7 +65,7 @@ process COVERAGE_ANALYSIS {
         -max_target_seqs 1000000 \\
         -dust no \\
         -num_threads ${task.cpus} \\
-        -outfmt "6 qseqid sseqid pident qcovhsp length qlen sstart send" >> ${meta.primer}_${name}.blast.tsv
+        -outfmt "6 qseqid sseqid pident qcovhsp length qlen sstart send qstart qend bitscore" >> ${meta.primer}_${name}.blast.tsv
 
     # List the records that have the region, each record once (even if several centroids hit it)
     # tail skips the header line, cut -f2 keeps the record column
