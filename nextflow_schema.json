@@ -219,6 +219,20 @@
           "description": "Number of mismatches allowed for obipcr",
           "default": 2
         },
+        "primer_site_not_found_mismatches": {
+          "type": "integer",
+          "description": "Primer-site diagnostic: maximum mismatches for a recognizable site; a candidate with more mismatches is classified PRIMER_SITE_NOT_FOUND",
+          "help_text": "This threshold is independent of --obipcr_mismatches and must be greater than or equal to it. With the defaults, 0-2 mismatches is BOUND, 3-4 is MISMATCH, and 5 or more is PRIMER_SITE_NOT_FOUND.",
+          "default": 4,
+          "minimum": 0
+        },
+        "primer_site_window": {
+          "type": "integer",
+          "description": "Primer-site diagnostic: bases searched on each side of the primer site predicted from the BLAST hit",
+          "help_text": "The predicted site is a guess when BLAST did not align the end of the barcode, because the record's unaligned part can be longer or shorter than the centroid's. In ITS2 the real site was up to 25 bp away, so the default searches 100 bp on each side.",
+          "default": 100,
+          "minimum": 0
+        },
         "obipcr_fixed_3prime": {
           "type": "integer",
           "description": "Number of 3'-terminal bases of each primer that must match without mismatch, as in a real PCR. Applied by appending '#' to those bases in the obipcr primer. 0 disables the clamp",

@@ -83,6 +83,8 @@ Both options need internet access.
 | `--taxid` | – | Restrict the database to this taxon and its descendants. |
 | `--db_filter` | `false` | Clean the database. Tune it with `--db_filter_pattern`, `--db_filter_min_length`, `--db_filter_max_length` and `--db_filter_max_n`. |
 | `--obipcr_mismatches` | `2` | Maximum mismatches per primer. |
+| `--primer_site_not_found_mismatches` | `4` | In primer-site diagnostics, classify a candidate as `PRIMER_SITE_NOT_FOUND` only above this mismatch count. Must be at least `--obipcr_mismatches`; intermediate counts remain `MISMATCH` and are written to `coverage_analysis/primer_mismatch_sites/<sample>.{forward,reverse}_mismatch_sites.fasta`. |
+| `--primer_site_window` | `100` | In primer-site diagnostics, search this many bases on each side of the primer site predicted from the BLAST hit. |
 | `--obipcr_fixed_3prime` | `3` | Number of 3' bases where no mismatch is allowed (`0` = off). |
 | `--filter_collapsed_primers` | `true` | Drop amplicons that match only the merged degenerate primer. Applies to FASTA input only. |
 | `--cluster_id` | `0.98` | `vsearch --cluster_fast` identity threshold (0–1). |
