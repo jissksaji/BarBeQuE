@@ -1,4 +1,4 @@
-# Reference Installation
+  # Reference Installation
 
 `--build_references` installs the reference data and exits. It doesn't run an analysis.
 
@@ -21,11 +21,12 @@ Everything is installed under `<reference_base>/barbeque/<reference_version>/` (
 ## Databases
 
 `refseq_mito`, `refseq_plastid`, `refseq_plasmid`, `midori_lrrna`, `midori_srrna`, `midori_cytb`,
-`midori_co1`, `midori_co2`, `midori_co3`, `mitofish`, `metafish`, `silva_ssu`, `silva_lsu`,
+`midori_co1`, `midori_co2`, `midori_co3`, `mitofish`, `silva_ssu`, `silva_lsu`,
 `its2_global`
 
-`--list_dbs` prints the same list. `core_nt` is also listed there, but it isn't downloaded:
-it's an externally managed BLAST database.
+`--list_dbs` prints the same list. The `core_nt` BLAST database is installed separately
+with `--install_core_nt true` during `--build_references`; it is off by default and is
+stored in `<reference_base>/barbeque/<reference_version>/core_nt/`.
 
 `--midori_version` (default `271_2026-04-07`) sets which MIDORI release is downloaded.
 
