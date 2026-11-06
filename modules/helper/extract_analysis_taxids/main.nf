@@ -3,8 +3,6 @@ process EXTRACT_ANALYSIS_TAXIDS {
     tag "${taxids}"
     label 'short_serial'
 
-    publishDir "${params.outdir}/analysis_taxids", mode: 'copy', pattern: '*.fasta'
-
     conda "${moduleDir}/environment.yml"
 
     input:
