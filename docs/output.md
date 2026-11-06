@@ -20,7 +20,7 @@ Outputs are written to `--outdir` (default `results`).
 | `consensus/` | Consensus taxonomy per cluster. This is the main result. |
 | `taxid_filtered/` | Databases restricted to `--taxid`. Only with `--taxid`. |
 | `tax_coverage/` | Coverage tables and Newick trees for the target taxon. Only with `--taxon`. |
-
+| `taxonomic_coverage_blast/` | Per primer/database: `blast/*.blast.tsv` (centroid hits in core_nt for the configured taxid) and `with_region/*.with_region.txt` (distinct hit accessions). The MultiQC report counts these accessions. Only with `--taxonomic_coverage_blast`. |
 ## Consensus table
 
 `consensus/` has one TSV per primer/database pair, with no header row. Each row is one accession:
