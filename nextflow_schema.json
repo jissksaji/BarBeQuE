@@ -53,6 +53,11 @@
           "description": "Install both the NCBI taxonomy dump and nucl_gb.accession2taxid during --build_references",
           "default": true
         },
+        "install_core_nt": {
+          "type": "boolean",
+          "description": "Install the NCBI core_nt BLAST database during --build_references",
+          "default": false
+        },
 
         "primer_min": {
           "type": "integer",
