@@ -72,6 +72,8 @@ process BARBEQUE_SETTINGS {
       "VSEARCH identity": {value: "${params.cluster_id}"}
       "Consensus fraction": {value: "${params.consensus_fraction}"}
       "OBI-PCR mismatches": {value: "${params.obipcr_mismatches}"}
+      "Primer-site not-found threshold": {value: "${params.primer_site_not_found_mismatches}"}
+      "Primer-site search window": {value: "${params.primer_site_window}"}
       "Fixed 3' bases": {value: "${params.obipcr_fixed_3prime}"}
       "Dereplication": {value: "${params.dereplicate_amplicons}"}
       "Masking": {value: "${params.mask}"}
