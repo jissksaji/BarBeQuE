@@ -1,7 +1,7 @@
 process MAKEBLASTDB {
 
     tag "${fasta.baseName}"
-    label 'short_serial'
+    label 'medium_serial'
 
     conda "${moduleDir}/environment.yml"
 
