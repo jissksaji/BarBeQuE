@@ -6,7 +6,7 @@ process PRIMER_BINDING {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(fasta), path(coverage)
+    tuple val(meta), path(fasta), path(coverage), path(obipcr_tsv)
 
     output:
     path "*.seqkit_locate.tsv", emit: locate
@@ -17,9 +17,13 @@ process PRIMER_BINDING {
     // Example: trnL_4442_Camellia_sinensis_species.with_barcode_not_amplified.fasta -> trnL_4442_Camellia_sinensis_species
     def prefix = fasta.name.replace('.with_barcode_not_amplified.fasta', '')
     """
-    # The two primers, named so the table says which one was found
+    # Use the actual original primers selected by FILTER_OBIPCR and recorded by
+    # PARSE_OBIPCR, rather than the merged degenerate primers in meta.fwd/meta.rev.
 
-    printf ">forward\\n${meta.fwd}\\n>reverse\\n${meta.rev}\\n" > primers.fasta
+    tail -n +2 ${obipcr_tsv} | cut -f3 | sort -u \\
+        | awk '{print ">forward_" NR "\\n" toupper(\$0)}' > primers.fasta
+    tail -n +2 ${obipcr_tsv} | cut -f9 | sort -u \\
+        | awk '{print ">reverse_" NR "\\n" toupper(\$0)}' >> primers.fasta
 
     # Find both primers in the records with the barcode but no amplicon,
     # with as many mismatches as obipcr allows
@@ -36,8 +40,8 @@ process PRIMER_BINDING {
     # awk keeps the lines of one primer, cut -f1 keeps the record column
 
     not_amplified=\$(grep -c '>' ${fasta} || true)
-    forward_bound=\$(awk -F'\\t' '\$2 == "forward"' ${prefix}.seqkit_locate.tsv | cut -f1 | sort -u | wc -l)
-    reverse_bound=\$(awk -F'\\t' '\$2 == "reverse"' ${prefix}.seqkit_locate.tsv | cut -f1 | sort -u | wc -l)
+    forward_bound=\$(awk -F'\\t' '\$2 ~ /^forward_/' ${prefix}.seqkit_locate.tsv | cut -f1 | sort -u | wc -l)
+    reverse_bound=\$(awk -F'\\t' '\$2 ~ /^reverse_/' ${prefix}.seqkit_locate.tsv | cut -f1 | sort -u | wc -l)
 
     # Records where a primer did NOT bind = not amplified records - records where it bound
 
