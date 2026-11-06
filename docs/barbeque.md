@@ -2,9 +2,23 @@
 
 The main analysis lives in `workflows/barbeque.nf`. It runs after `DATABASE` has produced the selected database FASTA channel.
 
+## Running it
+
+Always pick one software profile with `-profile` (one dash): `conda`, `docker` or `apptainer`.
+
+```bash
+nextflow run main.nf -profile conda --input primers.tsv --dbs midori_cytb --run_name my_test --reference_base /path/to/references
+```
+
+BarBeQuE works best with `-profile conda`. Some modules don't have a ready-made Docker container. With `docker` or `apptainer`, Nextflow (through Wave) builds a container for those modules from their conda packages, so the first run needs internet and takes longer.
+
+`--run_name`: a name for your run, e.g. `--run_name my_test`.
+
 ## Inputs
 
-Primer input is one of:
+The primers can be submitted in three ways. Use only one of them. With `--input`, give the location of a samplesheet with the columns `primer`, `fwd`, `rev`, `min` and `max`. If you have several variants of a primer, please submit them as a `.fasta` file instead, with `fwd` or `rev` in each header (e.g. `>ITS2_fwd1`, `>ITS2_rev1`). If a FASTA is passed, `--primer_min` and `--primer_max` must also be specified.
+
+If you prefer to test any of the primers which come by default with FooDMe2, please use the `--primer_set` option followed by the name of the primer set. These primer sets are resolved from the FooDMe2 catalog.
 
 - `--primer_set`: named primer sets resolved from the FooDMe2 catalog.
 - `--input <samplesheet.tsv>`: a TSV with `primer`, `fwd`, `rev`, `min`, and `max` columns.
@@ -19,16 +33,21 @@ See [Primer Input](primer_input.md) for the parsing rules and set naming.
 
 Database input is one of:
 
-- `--dbs`: comma-separated installed database ids from `conf/resources.config`.
-- `--custom_db`: one or more user-provided nucleotide FASTAs (`.fasta`, `.fa`, `.fna`) - a single file, a comma-separated list, or a glob (`'dbs/*.fasta'`). Each is benchmarked separately and its file basename becomes the database name, so those basenames must be unique.
+- `--dbs`: comma-separated installed databases, i.e. the preinstalled ones you got when you built the reference base. e.g. `--dbs 'midori_cytb'`
+- `--custom_db`: one or more user-provided nucleotide FASTAs (`.fasta`, `.fa`, `.fna`). The accessions in the headers are looked up in the NCBI accession-to-taxid mapping to find each record's species.
 
-Before primer benchmarking, `DATABASE` can restrict records with `--taxid` and
-apply header/length cleaning to every selected database with `--db_filter`.
+Pass just one kind of database: either a custom FASTA via `--custom_db` or a preinstalled one via `--dbs`. If both are given, only `--custom_db` is used.
+
+If you for some reason need to restrict the passed database to a smaller subset, you can pass `--taxid`, e.g. `--taxid 4442` (Camellia sinensis) keeps only the records of that taxon and the taxa below it. If you further need to filter the FASTA, switch on `--db_filter`. It removes records by the information in the header using `--db_filter_pattern 'environmental|recombinant'` (no spaces around the `|`). The reference sequences can also be length filtered using `--db_filter_min_length 100 --db_filter_max_length 200`.
 
 Taxonomy input is resolved from:
 
-- `--taxdump`, otherwise `<reference_base>/barbeque/<reference_version>/new_taxdump`
-- `--accession_taxonomy`, otherwise an accession mapping under `<reference_base>/barbeque/<reference_version>/genbank2taxid`
+- `--taxdump`, otherwise `<reference_base>/barbeque/<reference_version>/taxonomy/new_taxdump`
+- `--accession_taxonomy`, otherwise `<reference_base>/barbeque/<reference_version>/taxonomy/nucl_gb.accession2taxid`
+
+If you have given the reference base location, then the taxdump and accession taxonomy are auto-detected from there. Else you can give them directly with `--taxdump` and `--accession_taxonomy`.
+
+`--mask`: cuts the amplicons down to what a sequencer would actually read. By default (paired-end) it keeps `--read_length` bases (default 150) at each end, joined by 20 `N`s. With `--single_end` it keeps only the first `--read_length` bases (default 400).
 
 ## Workflow Steps
 
@@ -37,9 +56,9 @@ Taxonomy input is resolved from:
 3. Run in-silico PCR with OBI-PCR.
 4. For primer FASTA input, re-check every amplicon against the original, uncollapsed primers and discard those only the combined degenerate primer could explain (`--filter_collapsed_primers`).
 5. Parse the raw OBI-PCR output.
-6. Drop primer/database pairs with no retained amplicons from downstream analysis.
-7. Optionally apply `--mask` to mimic single-end or paired-end read coverage.
-8. Write amplicon length summaries.
+6. Write amplicon length summaries.
+7. Drop primer/database pairs with no retained amplicons from downstream analysis.
+8. Optionally apply `--mask` to mimic single-end or paired-end read coverage.
 9. Build accession-to-taxid tables once per database.
 10. Cluster amplicons with `vsearch --cluster_fast` using `--cluster_id`.
 11. Parse `.uc` cluster assignments.
