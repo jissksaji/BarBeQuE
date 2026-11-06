@@ -91,6 +91,11 @@ Both options need internet access.
 | `--single_end` | `false` | With `--mask`, truncate each amplicon to `--read_length` instead. |
 | `--read_length` | `150` (`400` single-end) | Read length used by `--mask`. |
 | `--taxon` | – | Add coverage reports for this target taxon. |
+| `--taxonomic_coverage_blast` | `true` | BLAST the centroids against core_nt, restricted to `--taxonomic_coverage_taxid`. |
+| `--taxonomic_coverage_taxid` | `3398` | Taxid used to restrict the core_nt search, including descendants. |
+| `--core_nt_db` | Installed database under `--reference_base` | Override with the prefix of an existing core_nt BLAST database, such as `/refs/core_nt/core_nt`. |
+| `--taxonomic_coverage_identity` | `75` | Minimum % identity of a centroid hit for a record to count as having the region. |
+| `--taxonomic_coverage_query_cov` | `75` | Minimum % of the centroid that one hit must cover. |
 | `--interactive` | `false` | Start the experimental Streamlit dashboard on port 8501 after the run. |
 
 See [Outputs](output.md) for results and [Troubleshooting](troubleshooting.md) for common failures.

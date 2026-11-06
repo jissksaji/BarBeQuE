@@ -88,6 +88,27 @@
           "type": "number",
           "description": "Coverage analysis: minimum % of the centroid that one hit must cover"
         },
+        "taxonomic_coverage_blast": {
+          "type": "boolean",
+          "description": "Search core_nt for centroid hits within the configured taxid"
+        },
+        "taxonomic_coverage_taxid": {
+          "type": "integer",
+          "description": "NCBI taxid used to restrict the core_nt centroid search, including descendants",
+          "default": 3398
+        },
+        "core_nt_db": {
+          "type": "string",
+          "description": "Path to the core_nt BLAST database prefix; overrides the database under --reference_base"
+        },
+        "taxonomic_coverage_identity": {
+          "type": "number",
+          "description": "Taxonomic coverage BLAST: minimum % identity of a centroid hit on a database record"
+        },
+        "taxonomic_coverage_query_cov": {
+          "type": "number",
+          "description": "Taxonomic coverage BLAST: minimum % of the centroid that one hit must cover"
+        },
         "list_dbs": {
           "type": "boolean",
           "description": "List installed databases and exit"
