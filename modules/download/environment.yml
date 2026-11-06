@@ -7,4 +7,5 @@ dependencies:
   - grep
   - gzip
   - python=3.12
+  - unzip
   - wget
