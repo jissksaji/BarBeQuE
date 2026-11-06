@@ -239,6 +239,12 @@
           "default": 3,
           "minimum": 0
         },
+        "obipcr_circular": {
+          "type": "boolean",
+          "description": "Treat database records as circular in obipcr (--circular), so amplicons crossing the start/end of a complete organelle genome are found",
+          "help_text": "Complete chloroplast and mitochondrial genomes are circular, but GenBank stores them as a linear string cut at an arbitrary point. An amplicon that crosses that cut is missed in linear mode. The option applies to every record in the database, including linear ones such as nuclear markers and partial gene sequences. For those, obipcr can join the end of the record to its start and report an amplicon that does not exist. This happens only when one primer site lies near the end of the record and the other near its start, within --max-length.",
+          "default": true
+        },
         "filter_collapsed_primers": {
           "type": "boolean",
           "description": "Re-check obipcr amplicons against the original, uncollapsed primers and discard those only the combined degenerate primer could explain",

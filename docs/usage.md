@@ -86,6 +86,7 @@ Both options need internet access.
 | `--primer_site_not_found_mismatches` | `4` | In primer-site diagnostics, classify a candidate as `PRIMER_SITE_NOT_FOUND` only above this mismatch count. Must be at least `--obipcr_mismatches`; intermediate counts remain `MISMATCH` and are written to `coverage_analysis/primer_mismatch_sites/<sample>.{forward,reverse}_mismatch_sites.fasta`. |
 | `--primer_site_window` | `100` | In primer-site diagnostics, search this many bases on each side of the primer site predicted from the BLAST hit. |
 | `--obipcr_fixed_3prime` | `3` | Number of 3' bases where no mismatch is allowed (`0` = off). |
+| `--obipcr_circular` | `true` | Treat database records as circular, so amplicons crossing the start/end of a complete organelle genome are found. Applies to all records, including linear ones. |
 | `--filter_collapsed_primers` | `true` | Drop amplicons that match only the merged degenerate primer. Applies to FASTA input only. |
 | `--cluster_id` | `0.98` | `vsearch --cluster_fast` identity threshold (0–1). |
 | `--consensus_fraction` | `1.0` | Fraction of a cluster that must support a taxon (>0.5–1.0). `1.0` is a strict LCA. |
