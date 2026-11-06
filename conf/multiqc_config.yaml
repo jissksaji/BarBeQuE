@@ -25,6 +25,16 @@ report_header_info:
 top_modules:
   - "general_stats"
 
+# Taxonomic coverage BLAST: the module writes a plain table, MultiQC shows it with these settings
+custom_data:
+  taxonomic_coverage_blast:
+    section_name: "Taxonomic Coverage (BLAST)"
+    description: "Distinct core_nt accessions hit by the centroids within the configured taxid and its descendants"
+    plot_type: "table"
+sp:
+  taxonomic_coverage_blast:
+    fn: "*.coverage_blast.tsv"
+
 # Higher parent/module numbers are placed higher in the report. Section numbers
 # within each parent are listed in ascending order.
 report_section_order:
