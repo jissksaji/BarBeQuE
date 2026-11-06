@@ -19,7 +19,6 @@ include { BUILD_DB_TAXIDS } from './../modules/helper/build_db_taxids/main'
 include { EXTRACT_ANALYSIS_TAXIDS } from './../modules/helper/extract_analysis_taxids/main'
 include { VSEARCH_CLUSTER_FAST } from './../modules/vsearch/cluster_fast/main'
 include { MAKEBLASTDB } from './../modules/blast/makeblastdb/main'
-include { MAKEBLASTDB as MAKEBLASTDB_MAIN } from './../modules/blast/makeblastdb/main'
 include { COVERAGE_ANALYSIS } from './../modules/helper/coverage_analysis/main'
 include { TAXONOMIC_COVERAGE_BLAST } from './../modules/helper/taxonomic_coverage_blast/main'
 include { TAXONOMIC_COVERAGE_REPORT_BLAST } from './../modules/helper/taxonomic_coverage_report_blast/main'
@@ -53,6 +52,11 @@ workflow BARBEQUE {
     main:
     ch_versions = ch_db_versions
     multiqc_files = channel.empty()
+
+    // Use an explicitly supplied BLAST database, or the installed core_nt index.
+    def coreNtDb = params.core_nt_db ?: (params.reference_base
+        ? "${params.reference_base}/barbeque/${params.reference_version}/core_nt/core_nt"
+        : null)
 
     // Set only for primer FASTA input, where the uncollapsed primers still exist
     // and FILTER_OBIPCR can check amplicons against them.
@@ -216,30 +220,20 @@ workflow BARBEQUE {
         )
     }
 
-    // Which database records have the barcode region? Search the centroids against the whole database
+    // Search core_nt within the configured taxon for records matching each centroid.
     if (WorkflowPipeline.enabled(params.taxonomic_coverage_blast)) {
-        MAKEBLASTDB_MAIN(ch_dbs.map { _meta, fasta -> fasta })
-        ch_versions = ch_versions.mix(MAKEBLASTDB_MAIN.out.versions)
+        if (!coreNtDb) {
+            error 'Provide --reference_base or --core_nt_db for the core_nt BLAST search'
+        }
 
-        // Add the database name to each BLAST index (MAKEBLASTDB only knows the file name)
-        // .join matches on the file name and keeps it once
-        // Example: [its2.cleaned, its2, its2.cleaned.fasta, db/] -> [its2, its2.cleaned, its2.cleaned.fasta, db/]
-        ch_blastdb = ch_dbs
-            .map { meta, fasta -> [fasta.baseName, meta.id] }
-            .join(MAKEBLASTDB_MAIN.out.db)
-            .map { name, id, fasta, db -> [id, name, fasta, db] }
-
-        // Pair each primer's centroids with the BLAST index of its own database
         TAXONOMIC_COVERAGE_BLAST(
-            VSEARCH_CLUSTER_FAST.out.centroids
-                .map { meta, centroids -> [meta.db, meta, centroids] }
-                .combine(ch_blastdb, by: 0)
-                .map { _id, meta, centroids, name, fasta, db -> [meta, centroids, name, fasta, db] }
+            VSEARCH_CLUSTER_FAST.out.centroids.map { meta, centroids ->
+                tuple(meta, centroids, coreNtDb, params.taxonomic_coverage_taxid)
+            }
         )
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE_BLAST.out.versions)
 
-        // Compare with the obipcr amplicons: .join adds the obipcr table of the same primer
-        TAXONOMIC_COVERAGE_REPORT_BLAST(TAXONOMIC_COVERAGE_BLAST.out.accessions.join(PARSE_OBIPCR.out.tsv))
+        TAXONOMIC_COVERAGE_REPORT_BLAST(TAXONOMIC_COVERAGE_BLAST.out.accessions)
         ch_versions = ch_versions.mix(TAXONOMIC_COVERAGE_REPORT_BLAST.out.versions)
         multiqc_files = multiqc_files.mix(TAXONOMIC_COVERAGE_REPORT_BLAST.out.tsv)
     }
